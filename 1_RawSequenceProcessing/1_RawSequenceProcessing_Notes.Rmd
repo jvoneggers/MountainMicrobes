@@ -1,0 +1,443 @@
+---
+title: "1_RawSequenceProcessing"
+author: "Jordan Von Eggers"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{bash}
+ssh jvonegge@beartooth.arcc.uwyo.edu
+salloc --mem=100GB --nodes=1 --cpus-per-task=32 --account=microbiome --time=2:00:00
+module load miniconda3/23.11.0
+conda activate vsearch
+
+```
+
+Make folders for test files
+```{bash}
+mkdir test_files
+cd /gscratch/jvonegge/MountainMicrobes/0_raw_fastq_files
+
+cp Calder.33_1_10_DNA.16S.AGGTAACCAA.GTCCTAACCA.Calder.16S0E4E1.R1.fq ../test_files
+cp Calder.33_1_10_DNA.16S.AGGTAACCAA.GTCCTAACCA.Calder.16S0E4E1.R2.fq ../test_files
+cp MAWC.TL1B.16S.GAGCCGCAA.GATGCGCA.soil.Hamilton.R1.fq ../test_files
+cp MAWC.TL1B.16S.GAGCCGCAA.GATGCGCA.soil.Hamilton.R2.fq ../test_files
+cp SNOTEL.IOANA_G12.16S.CCATGGAA.TGGACCAGAA.soil.EPSCOR.R1.fq ../test_files
+cp SNOTEL.IOANA_G12.16S.CCATGGAA.TGGACCAGAA.soil.EPSCOR.R2.fq ../test_files
+
+
+# count the reads in each of the files
+cd /gscratch/jvonegge/MountainMicrobes/test_files
+for file in *.fq; do
+    count=$(grep -c "^@16S" "$file")
+    echo "$file,$count"
+done
+
+```
+Calder.33_1_10_DNA.16S.AGGTAACCAA.GTCCTAACCA.Calder.16S0E4E1.R1.fq,35114
+Calder.33_1_10_DNA.16S.AGGTAACCAA.GTCCTAACCA.Calder.16S0E4E1.R2.fq,35114
+MAWC.TL1B.16S.GAGCCGCAA.GATGCGCA.soil.Hamilton.R1.fq,62625
+MAWC.TL1B.16S.GAGCCGCAA.GATGCGCA.soil.Hamilton.R2.fq,62625
+SNOTEL.IOANA_G12.16S.CCATGGAA.TGGACCAGAA.soil.EPSCOR.R1.fq,86763
+SNOTEL.IOANA_G12.16S.CCATGGAA.TGGACCAGAA.soil.EPSCOR.R2.fq,86763
+
+# Test - fastqc
+```{base}
+cd /gscratch/jvonegge/MountainMicrobes/test_files
+module load fastqc
+fastqc *fq
+
+cd /gscratch/jvonegge/MountainMicrobes/test_files
+module load fastqc
+fastqc *merged.fastq
+```
+
+After merging there are a few "illumina small RNA 3' adapters' showing up. going to search for them using: TGGAATTCTCGGGTGCCAAGG
+
+```{bash}
+grep 'TGGAATTCTCGG' /gscratch/jvonegge/MountainMicrobes/test_files/*.fq | grep -v '^@' | wc -l 
+# 1175
+grep 'TGGAATTCTCGG' /gscratch/jvonegge/MountainMicrobes/test_files/*merged.fastq | grep -v '^@' | wc -l
+# 619 
+
+grep 'TGGAATTCTCGG' Calder.33_1_10_DNA.16S.AGGTAACCAA.GTCCTAACCA.Calder.16S0E4E1.R1.fq | grep -v '^@' | wc -l
+
+cutadapt -g TGGAATTCTCGG -o Calder.33_1_10_ILLUMNIA_ADAPTER_R1.fq Calder.33_1_10_DNA.16S.AGGTAACCAA.GTCCTAACCA.Calder.16S0E4E1.R1.fq --error-rate 0.25 --discard-untrimmed --cores=32
+
+grep -c "^@16S" ILLUMNIA_ADAPTER_sequences.fq
+
+grep -B 1 -A 2 TGGAATTCTCGG Calder.33_1_10_DNA.16S.AGGTAACCAA.GTCCTAACCA.Calder.16S0E4E1.R1.fq > ILLUMNIA_ADAPTER_sequences.fq
+
+```
+
+@16S AGGTAACCAA GTCCTAACCA 33_1_10_DNA
+GTGCCAGCCGCCGCGGTAATACAGAGGTCCCGAGCGTTGTTCGGATTCACTGGGCGTAAAGGGTGCGTAGGCGGTCGGGTAAGTCTGATGTGAAATCTCGGAGCCCAACTCCGAAACGGCATTGGATACTATTCGGCTCGAGGTTGGGAGGGGGGACTGGAATTCTCGGTGTAGCAGTGAAATGCGTAGATATCGAGAGGAACACCAGTGGCGAAGGCGAGTCCCTGGACCAATCCTGACG
++
+FFFFFFFFFFFFFFFFFFFFFFF:FFFFFFFFFFFFF:FFFFFFFFFFFF:FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:FFF:FFFFFFFFFFF:FFFFFFF:FFFFFFFFFFFFFFFFFFFFFFFFFFFF,FFFFFFFFFF:FFFFFFF:FFFFFFF,FF,
+--
+@16S AGGTAACCAA GTCCTAACCA 33_1_10_DNA
+GTGTCAGCAGCCGCGGTAATACAGAGGTCCCAAGCGATGTTCGGATTCACTGGGCGTAAAGGGTGCGCAGGTGGTGGAACGAGTTTGATGTGAAAGCTCCGAGCTTAACTCGGAAATGGCATTGAATACTGTACCGCTCGAGGGTCGGAAGGGAGACTGGAATTCTCGGTGTAGCAGTGAAATGCGTAGATATCGAGAGGAACACCGGTGGCGAATGCGAGTCTCTGGACGATTCATGACT
++
+:,:F:FFF:,,FF:::FF:FFFF:F:,FFFFFF,:,,F,,FF:FFFFFF:F,,,,FFFFFFFFF:F,:FF,:,:F::::FFF:,FF,F,,,FFFFFFFFF,FF,:FFFFFFF:FFF:,F,FFF,:F,FFFFF,FFF:FF,F,,,FFF:FF,,FFFF,:,,FF,,FFF,,,F:,FFF:,,FFF:,,,FFFF,FF,,FFF,,F,FFF,F,,,,F,FFF,,FFFFFFF::,F:FFF:F,F,F::
+--
+@16S AGGTAACCAA GTCCTAACCA 33_1_10_DNA
+GTGCCAGCAGCCGCGGTAATACAGAGGTCCCAAGCGTTGTTCGGATTCACTGGGCGTAAAGGGTGCGTAGGCGGTCGGGTAAGTCCGACGTGAAATCTCCAAGCTCAACTTGGAAACGGCGTCGGATACTATTCGGCTTGAGGAATGGAGGGGAGACTGGAATTCTCGGTGTAGCAGTGAAATGCGTAGATATCGAGAGGAACACCAGTGGCGAAGGCGAGTCTCTGGACATTTCCTGACT
++
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:FFFFFFFFFFF,FFFFFFF,FFFFFFFFFFFFFFFFFFFFFFF:FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:FFFFFFFFF,FFFFFFFFFFFFF:,FFFFFFFFF:FFFFF::F,F,FF,
+--
+@16S AGGTAACCAA GTCCTAACCA 33_1_10_DNA
+GTGCCAGCCGCCGCGGTAATACAGAGGTCCCAAGCGTTGTTCGGATTCACTGGGCGTAAAGGGTGCGTAGGCGGTCGGGTAAGTCTGACGTGAAATCTCGCGGCTCAACCGCGAAAATGCGTCGGATACTATCTGGCTCGAGGAGTGGAAGGGAGACTGGAATTCTCGGTGTAGCAGTGAAATGCGTAGATATCGAGAGGAACACCAGTGGCGAAGGCGAGTCTCTGGACACTTCCTGACT
++
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:FFFFFFF:FFFFFFFFFFFFFFFFFFFFFFFFFFF,FF:FFFF:F,FF:F::FFFFFFF,
+--
+@16S AGGTAACCAA GTCCTAACCA 33_1_10_DNA
+GTGTCAGCAGCCGCGGTAATACAGAGGTCCCAAGCGTTGTTCGGATTCACTGGGCGTAAAGGGTGCGTAGGTGGTCGGGTAAGTCTGATGTGAAATCTCGGAGCTTAACTCCGAAACGGCATTAGATACTATTCGGCTTGAGGGTTGGAGGGGAGACTGGAATTCTCGGTGTAGCAGTGAAATGCGTAGATATCGAGAGGAACACCAGTGGCGAAGGCGAGTCTCTAGACAACTCCTGACA
+
+Consensus: not sure how much of a problem this is.. maybe check after filtering? Convert filtering to FQ files 
+
+
+
+# Test - cutadapt 
+
+decisions: using en error rate of 0.25 based on the
+Decide error rate based on Novaseq error rates: 
+https://doi.org/10.1093/nargab/lqab019
+Error rate for NovaSeq 6000 is 0.109 (median) with sd of 0.350. But from the plot, looks like 0.25 might capture all errors. 
+
+
+```{base}
+samples=$(ls | awk -F '.16S' '{print $1}' | uniq)
+
+echo "Remove primers and clean headers"
+for s in $samples;
+do
+cutadapt -g ^GTGYCAGCMGCCGCGGTAA -o ${s}_R1_primers_removed.fastq  \
+        -G ^GGACTACHVGGGTWTCTAAT -p ${s}_R2_primers_removed.fastq \
+        ${s}*.R1.fq ${s}*.R2.fq \
+        --error-rate 0.25 --discard-untrimmed --cores=32 || exit
+
+sed 's/\s/_/g' ${s}_R1_primers_removed.fastq | sed -e 's/^@16/@rna16/' - | sed -e 's/-/_/g' > ${s}_R1_primers_removed_headers.fastq
+sed 's/\s/_/g' ${s}_R2_primers_removed.fastq | sed -e 's/^@16/@rna16/' - | sed -e 's/-/_/g' > ${s}_R2_primers_removed_headers.fastq
+done
+```
+
+UPDATED: paired to make sure they are all the same number of reads after trimming primers
+```{bash}
+
+cd /gscratch/jvonegge/MountainMicrobes/test_files
+samples=$(ls | awk -F '.soil|.Calder' '{print $1}' | uniq)
+
+echo "Remove primers"
+for s in $samples;
+do
+cutadapt -g ^GTGYCAGCMGCCGCGGTAA -o ${s}_R1_primers_removed.fastq \
+        -G ^GGACTACHVGGGTWTCTAAT -p ${s}_R2_primers_removed.fastq \
+        ${s}*.R1.fq ${s}*.R2.fq \
+        --error-rate 0.25 --discard-untrimmed --cores=32 || exit
+done
+```
+
+Outcome: Looks good - primers trimmed and 91-92% of adapters passed filters. 
+
+# Test - merge
+
+decisions: keep the same error rate from that paper, when we merge it will increase quality scores and then we will filter later on. Since most of this region will overlap, we used maxdiffpct instead of a set maximum differences. Minimum length will be 200, which is about 50 bp less than the lowest bp length I found (254, 291, 300+). Not going to have a maximum size incase there are longer regions (will look at fast QC this after). Allowing staggered reads to merge.
+```{bash}
+echo "Merge pairs"
+
+for s in $samples;
+do
+vsearch --fastq_mergepairs ${s}_R1_primers_removed_headers.fastq \
+        --reverse ${s}_R2_primers_removed_headers.fastq \
+        --fastqout ${s}_merged.fastq \
+        --fastq_maxdiffpct 0.5 --fastq_minovlen 40 --fastq_minmergelen 200 \
+        --fastq_allowmergestagger --threads 32 \
+        --sample $s \
+        --fastqout_notmerged_fwd ${s}_notmerged_R1.fastq \
+        --fastqout_notmerged_rev ${s}_notmerged_R2.fastq || exit
+done
+
+
+```
+
+
+vsearch v2.28.1_linux_x86_64, 125.1GB RAM, 32 cores
+https://github.com/torognes/vsearch
+
+Merging reads 100% 
+     35114  Pairs
+     13773  Merged (39.2%)
+     21341  Not merged (60.8%)
+
+Pairs that failed merging due to various reasons:
+       281  too few kmers found on same diagonal
+      1325  too many differences
+     18665  too high percentage of differences
+      1042  alignment score too low, or score drop too high
+         5  overlap too short
+        23  merged fragment too short
+
+Statistics of all reads:
+    221.50  Mean read length
+
+Statistics of merged reads:
+    253.12  Mean fragment length
+      2.42  Standard deviation of fragment length
+      0.45  Mean expected error in forward sequences
+      0.56  Mean expected error in reverse sequences
+      0.10  Mean expected error in merged sequences
+      0.00  Mean observed errors in merged region of forward sequences
+      0.00  Mean observed errors in merged region of reverse sequences
+      0.00  Mean observed errors in merged region
+vsearch v2.28.1_linux_x86_64, 125.1GB RAM, 32 cores
+https://github.com/torognes/vsearch
+
+Merging reads 100% 
+     62625  Pairs
+     31858  Merged (50.9%)
+     30767  Not merged (49.1%)
+
+Pairs that failed merging due to various reasons:
+        78  too few kmers found on same diagonal
+      1170  too many differences
+     28836  too high percentage of differences
+       481  alignment score too low, or score drop too high
+         2  overlap too short
+       200  merged fragment too short
+
+Statistics of all reads:
+    232.02  Mean read length
+
+Statistics of merged reads:
+    253.07  Mean fragment length
+      1.50  Standard deviation of fragment length
+      0.28  Mean expected error in forward sequences
+      0.66  Mean expected error in reverse sequences
+      0.07  Mean expected error in merged sequences
+      0.00  Mean observed errors in merged region of forward sequences
+      0.00  Mean observed errors in merged region of reverse sequences
+      0.00  Mean observed errors in merged region
+vsearch v2.28.1_linux_x86_64, 125.1GB RAM, 32 cores
+https://github.com/torognes/vsearch
+
+Merging reads 100% 
+     86763  Pairs
+     47674  Merged (54.9%)
+     39089  Not merged (45.1%)
+
+Pairs that failed merging due to various reasons:
+         3  too few kmers found on same diagonal
+      1703  too many differences
+     36827  too high percentage of differences
+       498  alignment score too low, or score drop too high
+        58  merged fragment too short
+
+Statistics of all reads:
+    232.53  Mean read length
+
+Statistics of merged reads:
+    253.00  Mean fragment length
+      0.31  Standard deviation of fragment length
+      0.29  Mean expected error in forward sequences
+      0.71  Mean expected error in reverse sequences
+      0.07  Mean expected error in merged sequences
+      0.00  Mean observed errors in merged region of forward sequences
+      0.00  Mean observed errors in merged region of reverse sequences
+      0.00  Mean observed errors in merged region
+
+
+Thoughts: none of these said the overlap was too short, so we know they are overlapping, its just that there are too many differences in the overlap. 0.25 is reasonable and we don't want to up it to 0.5, where 50 % could be different. I kept the ones that didn't merge but I don't think I want to watch them. 
+
+```{bash}
+echo "Filter, relabel, and concatenate all sequences"
+for s in $samples;
+do
+vsearch -fastq_filter ${s}_merged.fastq -fastq_maxee 1 -fastaout ${s}_filtered.fa || exit
+cat ${s}_filtered.fa >> seqs_samples.fa 
+done
+
+```
+
+
+
+USE ONE ABOVE, this is just to llook for the Illumina RNA 3' adapters
+
+```{bash}
+echo "Filter, relabel, and concatenate all sequences"
+for s in $samples;
+do
+vsearch -fastq_filter ${s}_merged.fastq -fastq_maxee 1 -fastqout ${s}_filtered.fq || exit
+cat ${s}_filtered.fa >> seqs_samples.fa 
+done
+
+module load fastqc
+fastqc *_filtered.fq
+```
+
+
+If used merge maxdiffpct 0.25:
+
+Filtering kept most reads: 
+Reading input file 100%  
+13753 sequences kept (of which 0 truncated), 20 sequences discarded.
+vsearch v2.28.1_linux_x86_64, 125.1GB RAM, 32 cores
+https://github.com/torognes/vsearch
+
+Reading input file 100%  
+31847 sequences kept (of which 0 truncated), 11 sequences discarded.
+vsearch v2.28.1_linux_x86_64, 125.1GB RAM, 32 cores
+https://github.com/torognes/vsearch
+
+Reading input file 100%  
+47650 sequences kept (of which 0 truncated), 24 sequences discarded.
+
+If used merge maxdiffpct 0.5:
+
+Reading input file 100%  
+13754 sequences kept (of which 0 truncated), 20 sequences discarded.
+vsearch v2.28.1_linux_x86_64, 125.1GB RAM, 32 cores
+https://github.com/torognes/vsearch
+
+Reading input file 100%  
+46823 sequences kept (of which 0 truncated), 44 sequences discarded.
+vsearch v2.28.1_linux_x86_64, 125.1GB RAM, 32 cores
+https://github.com/torognes/vsearch
+
+Reading input file 100%  
+65980 sequences kept (of which 0 truncated), 71 sequences discarded.
+
+Consensus: this means that we can have a much higher error rate if we want and a lot of the sequences aren't lost in the filtering step..
+
+
+thoughts for depreplicate, cluster, climeras, make otu tables:
+use 97 and 99% for microbes, not ESVs.. but can make ESVs. 
+- could change the minsize for cluster denoise based on what Josh H. said about the dada2/vsearch comparison
+
+```{bash}
+echo "dereplicate"
+
+vsearch -fastx_uniques seqs_samples.fa -fastaout unique_seqs.fa -sizeout -relabel Uniq_ || exit
+
+
+echo "*************** Cluster denoise sequences ***************"
+vsearch --cluster_unoise unique_seqs.fa --centroids ZOTU.fa \
+        --minsize 8 --relabel ZOTU_ --sizein --sizeout --no_progress || exit
+
+
+echo "*************** Remove chimeras region DENOVO ***************"
+vsearch --uchime_denovo ZOTU.fa --nonchimeras ZOTU_no_chimeras_ref_no_singletons.fa \
+        --sizein --sizeout --relabel ZOTU_ \
+        --no_progress || exit
+    
+ids=(97 99)    
+for i in "${ids[@]}"
+do
+echo "*************** Make OTU tables ID: 0.$i ***************"
+vsearch --usearch_global seqs_samples.fa \
+        --db ZOTU_no_chimeras_ref_no_singletons.fa \
+        --otutabout ZOTU_table_${i} \
+        --id 0.${i} --threads 32 --no_progress || exit
+done
+```
+
+This is at 50% error rate for merging
+Dereplicating file seqs_samples.fa 100%  
+55618611 nt in 219807 seqs, min 207, max 398, avg 253
+Sorting 100%
+15431 unique sequences, avg cluster 14.2, median 2, max 18338
+Writing FASTA output file 100% 
+
+Reading file unique_seqs.fa 100%
+526881 nt in 2082 seqs, min 251, max 255, avg 253
+minsize 8: 13349 sequences discarded.
+Masking 100%
+Sorting by abundance 100%
+Counting k-mers 100%
+Clustering 100%
+Sorting clusters 100%
+Writing clusters 100%
+Clusters: 1825 Size min 8, max 19279, avg 1.1
+
+
+Reading file ZOTU.fa 100%
+461864 nt in 1825 seqs, min 251, max 255, avg 253
+Masking 100%
+Sorting by abundance 100%
+Counting k-mers 100%
+Detecting chimeras 100%
+Found 193 (10.6%) chimeras, 1631 (89.4%) non-chimeras,
+and 1 (0.1%) borderline sequences in 1825 unique sequences.
+Taking abundance information into account, this corresponds to
+4311 (2.3%) chimeras, 185287 (97.7%) non-chimeras,
+and 8 (0.0%) borderline sequences in 189606 total sequences.
+
+*************** Make OTU tables ID: 0.97 ***************
+vsearch v2.28.1_linux_x86_64, 125.1GB RAM, 32 cores
+https://github.com/torognes/vsearch
+
+Reading file ZOTU_no_chimeras_ref_no_singletons.fa 100%
+412782 nt in 1631 seqs, min 251, max 255, avg 253
+Masking 100%
+Counting k-mers 100%
+Creating k-mer index 100%
+Searching 100%
+Matching unique query sequences: 205610 of 219807 (93.54%)
+Writing OTU table (classic) 100%
+
+*************** Make OTU tables ID: 0.99 ***************
+vsearch v2.28.1_linux_x86_64, 125.1GB RAM, 32 cores
+https://github.com/torognes/vsearch
+
+Reading file ZOTU_no_chimeras_ref_no_singletons.fa 100%
+412782 nt in 1631 seqs, min 251, max 255, avg 253
+Masking 100%
+Counting k-mers 100%
+Creating k-mer index 100%
+Searching 100%
+Matching unique query sequences: 197052 of 219807 (89.65%)
+Writing OTU table (classic) 100%
+
+
+
+
+
+```{bash}
+echo "Make new directory for output files"
+version=$(echo "V1")
+cd /gscratch/jvonegge/MountainMicrobes
+mkdir ${version}_process/
+
+echo "Set names"
+cd /gscratch/jvonegge/MountainMicrobes/0_raw_fastq_files
+samples=$(ls | awk -F '.16S' '{print $1}' | uniq)
+```
+
+Remove primers 
+
+
+```{bash}
+echo "Remove primers"
+for s in $samples;
+do
+cutadapt -g ^GTGYCAGCMGCCGCGGTAA -o ../${version}_process/${s}_R1_primers_removed.fastq ${s}*.R1.fq --error-rate 0.25 --discard-untrimmed --cores=32 || exit
+cutadapt -g ^GGACTACHVGGGTWTCTAAT -o ../${version}_process/${s}_R2_primers_removed.fastq ${s}*.R2.fq --error-rate 0.25 --discard-untrimmed --cores=32 || exit
+done
+```
+
+Merge sequences
+
+https://omegabioservices.com/index.php/16s-reference/
+291 basepairs
+
+https://www.illumina.com/documents/products/appnotes/appnote_miseq_16S.pdf
+
+
+Found some Illumnia RNA 3' adapters (a percent or two) in 2 of the 3 test samples:
+
+https://eurofinsgenomics.eu/media/1610545/illumina-adapter-sequences.pdf
+
+https://jp.support.illumina.com/content/dam/illumina-support/help/Illumina_DRAGEN_Bio_IT_Platform_v3_7_1000000141465/Content/SW/Informatics/Dragen/FastQC_Adapter_Kmer_files_fDG.htm
+
