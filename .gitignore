@@ -33,7 +33,8 @@ docs/
 po/*~
 # RStudio Connect folder
 rsconnect/
-2_DataCleaning/ZOTU
-2_DataCleaning/Taxonomy
-2_DataCleaning/OTU
+2_DataCleaning/ZOTU/
+2_DataCleaning/Taxonomy/
+2_DataCleaning/OTU/
 2_DataCleaning/*.Rdata
+1_RawSequenceProcessing/output/
