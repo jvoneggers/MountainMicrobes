@@ -2,7 +2,7 @@
 title: "WY Lake Sediment Prokaryotic Community Data Cleaning"
 author: "Jordan Von Eggers"
 date: "2024-01-19"
-output: html_document
+output: pdf_document
 editor_options: 
   chunk_output_type: inline
 ---
@@ -32,10 +32,10 @@ McLaren, Michael R., & Callahan, Benjamin J. (2021). Silva 138.1 prokaryotic SSU
 Merge the ZOTU/OTU id with the assigned taxonomy, based on the sequence in column one of the tax_table
 ```{r}
 # read in fasta file 
-fasta <- readDNAStringSet("../1_RawSequenceProcessing/output/ZOTU_no_chimeras_denovo.fa")
+fasta <- readDNAStringSet("../1_RawSequenceProcessing/output/OTU_97_no_chimeras_denovo.fa")
 
 # read in assigned taxonomy 
-tax_table<-read.csv("../1_RawSequenceProcessing/output/ZOTU_taxonomy_80_DADA2.csv", header=T)
+tax_table<-read.csv("../1_RawSequenceProcessing/output/OTU_97_taxonomy_80_DADA2.csv", header=T)
 colnames(tax_table)[1]<-"seq"
 ESVseq<-data.frame(seq=as.character(fasta), names=names(fasta))
 ESVseq$ESV<-str_split(ESVseq$names,pattern = ";", 3, simplify = T)[,1]
@@ -57,7 +57,7 @@ Put these into an "AssignTaxonomy" folder and then the final one in the "FinalTa
 
 ### a. Read in taxonomy table
 ```{r}
-tax_tab<-read.csv("Taxonomy/ZOTU_Silva138_assignedTaxonomy_toSpecies.csv", header=T,row.names=1)
+tax_tab<-read.csv("Taxonomy/OTU_97_Silva138_assignedTaxonomy_toSpecies.csv", header=T,row.names=1)
 table(tax_tab$Kingdom) # showing NO Eukaryotes
 unique(tax_tab$Kingdom) # when the cell is empty there is an NA
 ```
@@ -102,7 +102,7 @@ nrow(tax_tab)
 
 ## 2. Read in ESV table
 ```{r}
-esv_table<-read.delim("../1_RawSequenceProcessing/output/ZOTU_table_exact", header = TRUE, stringsAsFactors = FALSE, quote = "", sep = "\t")
+esv_table<-read.delim("../1_RawSequenceProcessing/output/OTU_table_97", header = TRUE, stringsAsFactors = FALSE, quote = "", sep = "\t")
 #change the ESV name to be a row name
 rownames(esv_table)<-esv_table$X.OTU.ID
 esv_table$X.OTU.ID<-NULL
@@ -190,6 +190,7 @@ remove<-c("Calder.H24blank",
 "Calder.H27SG00_1",
 "Calder.H37SG01_1",
 "Calder.H42SG15_1",
+
 
 "Calder.LWL0104L",
 "Calder.LW0100",
@@ -810,17 +811,11 @@ rm(ps)
 rm(esv_tab)
 rm(taxa_tab)
 rm(samp_dat)
-
-save.image("TEMP.Rdata")
 ```
 
 ### c. Remove contaminants and blanks
-
 ```{r}
 # remove contaminants from ESV table
-contamdf.prev$esv<-rownames(contamdf.prev)
-contaminants<-contamdf.prev[which(contamdf.prev$contaminant==TRUE),]$esv
-
 esv_table<-esv_table[!rownames(esv_table)%in%contaminants,]
 
 # remove blanks from esv_table
@@ -860,50 +855,51 @@ ncol(esv_table)
 ### a. Plot esvs per read count
 
 ```{r}
-# calculate number of reads
 reads_per_esv<-as.data.frame(rowSums(esv_table))
 names(reads_per_esv)<-"reads"
 reads_per_esv$esv<-rownames(reads_per_esv)
 rownames(reads_per_esv)<-NULL
 
-# make a table to see the counts of each esv
-table_no.out_per.read<-as.data.frame(table(reads_per_esv$reads))
-table_no.out_per.read$Var1<-as.numeric(as.character(table_no.out_per.read$Var1))
-colnames(table_no.out_per.read)<-c("reads","no.esvs")
+#make a table to see the frequency of the reads per ESV
+table_reads_per_esv<-as.data.frame(table(reads_per_esv$reads))
+colnames(table_reads_per_esv)<-c("reads","freqESVs")
+table_reads_per_esv$reads<-as.numeric(as.character(table_reads_per_esv$reads))
 
 #plot all to see that this is just happening within the first 100 reads
-plot(table_no.out_per.read$reads,table_no.out_per.read$no.esvs,main="Number of ESVs per read count", xlab="Total reads", ylab="Number of ESVs")
+plot(table_reads_per_esv$reads,table_reads_per_esv$freqESVs,main="Number of ESVs per read count", xlab="read count", ylab="number of esvs")
 
+#plot the subset of 0-20 reads  
+plot(table_reads_per_esv$reads[1:100],table_reads_per_esv$freqESVs[1:100],main="number of esvs per read count", xlab="reads", ylab="number of esvs")
 
-#plot the subset of 0-20 reads
-plot(table_no.out_per.read$reads[1:100],table_no.out_per.read$no.esvs[1:100],main="Number of ESVs per read count", xlab="Total reads", ylab="Number of ESVs")
+table_reads_per_esv[1:25,]
 
-
-rm(table_no.out_per.read)
+rm(table_reads_per_esv)
 rm(reads_per_esv)
 ```
 
-After viewing figures, I decided to remove ESVs with less than 10 reads, the following paper did the same: 
-Urrutia-Cordero, P., Langenheder, S., Striebel, M., Eklöv, P., Angeler, D. G., Bertilsson, S., ... Hillebrand, H. (2021). Functionally reversible impacts of disturbances on lake food webs linked to spatial and seasonal dependencies. Ecology, 102(4). https://doi.org/10.1002/ecy.3283
+Citation for removing OTUs with less than reads 10: 
+Urrutia-Cordero, P., Langenheder, S., Striebel, M., Eklöv, P., Angeler, D. G., Bertilsson, S., … Hillebrand, H. (2021). Functionally reversible impacts of disturbances on lake food webs linked to spatial and seasonal dependencies. Ecology, 102(4). https://doi.org/10.1002/ecy.3283
 
-### b. Remove ESVs with less than 10 reads
+### b. Remove ESVs with less than X reads
 
 ```{r}
+# output values for unpruned esv table without blanks
 reads_per_esv<-as.data.frame(rowSums(esv_table))
 names(reads_per_esv)<-"reads"
 reads_per_esv$esv<-rownames(reads_per_esv)
 rownames(reads_per_esv)<-NULL
 
-lessthan10<-which(reads_per_esv$reads<10)
-esv_table_lessthan10removed<-esv_table[lessthan10,]
-sum(colSums(esv_table_lessthan10removed))
-nrow(esv_table_lessthan10removed)
+# how many reads and ESVs removed if you remove ESVs with less than X reads total
+lessthanX<-which(reads_per_esv$reads<10) # JUST CHANGE ONCE HERE
+esv_table_lessthanXremoved<-esv_table[lessthanX,]
+sum(colSums(esv_table_lessthanXremoved))
+nrow(esv_table_lessthanXremoved)
 
-esv_table<-esv_table[-lessthan10,]
-
-rm(lessthan10)
-rm(esv_table_lessthan10removed)
+# overwrite the table after removing ESVs with less than X reads across the dataset
+esv_table<-esv_table[-lessthanX,]
+rm(esv_table_lessthanXremoved)
 rm(reads_per_esv)
+rm(lessthanX)
 ```
 
 ### @count_track (samples)
@@ -914,11 +910,10 @@ Here I:
 - removed ESVs assigned to chloroplast, mitochondria, and kingdom NA
 - summed technical replicates and removed one sample that was uncorrelated with high reads
 - removed contaminant ESVs
-- removed the 11 blanks
+- removed the blanks
 - removed ESVs with less than 10 reads across all samples
 
 ```{r}
-Sys.Date()
 # total number of reads
 sum(colSums(esv_table))
 
@@ -975,8 +970,8 @@ This figure suggest that I should normalize because the number of ESVs increases
 ## 7. Write ESV and taxa CSVs before normalization
 
 ```{r}
-write.csv(esv_table,file=paste0("2_DataCleaning/ZOTU/",Sys.Date(),"ZOTUexact_table_notnorm.csv",row.names = T))
-write.csv(tax_tab,file=paste0("2_DataCleaning/ZOTU/",Sys.Date(),"ZOTUexact_tax_tab_notnorm.csv",row.names = T))
+#write.csv(esv_table,file=paste0("ZOTU/",Sys.Date(),"_ZOTUexact_table_notnorm.csv"),row.names = T)
+write.csv(tax_tab,file=paste0("ZOTU/",Sys.Date(),"_ZOTUexact_tax_tab_notnorm.csv"),row.names = T)
 ```
 
 ## 8. Normalize
@@ -989,38 +984,37 @@ names(num_read)<-"reads"
 num_read$sample<-rownames(num_read)
 rownames(num_read)<-NULL
 
-belowthreshold<-which(num_read$reads<10000)
-length(belowthreshold)
-# 76 samples below 10,000 reads - 19-Jan-2024 
+# look at how many samples would be removed if the threshold is 10,000
+length(which(num_read$reads<10000))
+
+# which lakes are these samples from
+table(str_sub(num_read[num_read$reads<10000,]$sample,start = 1, end = 4))
 
 # look at how many samples would be removed if the threshold is 5000
-belowthreshold5000<-which(num_read$reads<5000)
-length(belowthreshold5000)
-# this is 72, very close to 76, so I will use 10,000 reads as the cutoff
-rm(belowthreshold5000)
+length(which(num_read$reads<5000))
 
-esv_to_normalize_10k<-esv_to_normalize[,-belowthreshold]
+esv_to_normalize_10k<-esv_to_normalize[,-which(num_read$reads<10000)]
 ncol(esv_to_normalize_10k)
-# 478 samples remaining - 19-Jan-2024
+rm(esv_to_normalize)
 
 # check the columns were removed visually
-remove<-num_read[belowthreshold,] # all of these are between 100 and 10,000
-num_read_esv_to_normalize_10000<-as.data.frame(colSums(esv_to_normalize_10k)) # all over 10,000 reads
+range(num_read[which(num_read$reads<10000),]$reads) # all of these are under 9965
+range(as.data.frame(colSums(esv_to_normalize_10k))) # all over 10,000 reads
 
-rm(remove)
-rm(num_read_esv_to_normalize_10000)
-rm(belowthreshold)
 rm(num_read)
 
-# check if there are now ESVs with zero reads
+
+# check for ESVs with zeros reads again
 reads_per_esv<-as.data.frame(rowSums(esv_to_normalize_10k))
 names(reads_per_esv)<-"reads"
 reads_per_esv$esv<-rownames(reads_per_esv)
 rownames(reads_per_esv)<-NULL
 
-lessthan1<-which(reads_per_esv$reads<1)
-#no ESVs with reads less than 1 (integer)
-rm(lessthan1)
+# remove ESVs with 0 reads (if there are any)
+if(length(which(reads_per_esv$reads<1))>0){
+     esv_to_normalize_10k<-esv_to_normalize_10k[which(reads_per_esv$reads>0),]   
+}
+
 rm(reads_per_esv)
 ```
 
@@ -1029,45 +1023,44 @@ rm(reads_per_esv)
 Notes on the rrarefy() function from the help page: Function rrarefy generates one randomly rarefied community data frame or vector of given sample size. The sample can be a vector giving the sample sizes for each row. If the sample size is equal to or smaller than the observed number of individuals, the non-rarefied community will be returned. The random rarefaction is made without replacement so that the variance of rarefied communities is rather related to rarefaction proportion than to the size of the sample. 
 
 ```{r}
-S <- specnumber(esv_to_normalize_10k) 
+S <- specnumber(esv_to_normalize_10k)
+#observed number of species
 length(S)
-#[1] 101324 - observed number of species - 19-Jan-2024 # observed number of species
-(raremax <- min(rowSums(t(esv_to_normalize_10k)))) #minimum reads to normalize to (10291 - 19-Jan-2024)
+
+#minimum reads to normalize to
+(raremax <- min(rowSums(t(esv_to_normalize_10k)))) 
 set.seed(061319)
 rrare<-rrarefy(t(esv_to_normalize_10k), sample = raremax)
-df<-as.data.frame(t(rrare))
+rrare<-as.data.frame(t(rrare))
 
-
-pdf(paste0("DataCleaning/",Sys.Date(),"_Rarefied_Data_10K_Reads.pdf"))
-plot(S, specnumber(t(rrare)), xlab = "Observed No. of Species", ylab = "Rarefied No. of Species")
+plot(S, specnumber(rrare), xlab = "Observed No. of Species", ylab = "Rarefied No. of Species")
 abline(0, 1)
-dev.off()
 
 
-num_read<-as.data.frame(colSums(df))
+num_read<-as.data.frame(colSums(rrare))
 names(num_read)<-"reads"
 num_read$sample<-rownames(num_read)
 rownames(num_read)<-NULL
 
 # count the number of species after rarefaction
-esv_counts<-as.data.frame(rowSums(df))
+esv_counts<-as.data.frame(rowSums(rrare))
 names(esv_counts)<-"reads"
 esv_counts$ESV<-rownames(esv_counts)
 rownames(esv_counts)<-NULL
 zeroESV<-which(esv_counts$reads<1)
+#ESVS that are zero after rarefying
 length(zeroESV)
-# [1] 8479 - ESVS that are zero after rarefying - 19-Jan-2024 
 
-esv_tab_10knorm<-df[-zeroESV,]
+# look at the range of the number of reads
+range(as.data.frame(rowSums(rrare)))
+
+esv_tab_10knorm<-rrare[-zeroESV,]
 
 #check you removed ESVs with 0 reads.
-check1<-as.data.frame(rowSums(esv_tab_10knorm))
+range(as.data.frame(rowSums(esv_tab_10knorm)))
 
-rm(check1)
-rm(df)
 rm(num_read)
 rm(esv_counts)
-rm(esv_to_normalize)
 rm(raremax)
 rm(S)
 rm(zeroESV)
@@ -1075,11 +1068,9 @@ rm(rrare)
 rm(esv_table)
 
 # keep the non-normalized ESV table that is cut off at 10k just in case
-write.csv(esv_to_normalize_10k, paste0("DataCleaning/",Sys.Date(),"_ESVs_to_normalize_10K_reads.csv"), row.names=T)
-write.csv(esv_tab_10knorm, paste0("DataCleaning/",Sys.Date(),"_ESV_tab_10K_reads_normalized.csv", row.names=T))
+#write.csv(esv_to_normalize_10k, paste0("ZOTU/",Sys.Date(),"_ZOTUexact_ESVs_to_normalize_10K_reads.csv"), row.names=T)
+write.csv(esv_tab_10knorm, paste0("ZOTU/",Sys.Date(),"_ZOTUexact_ESV_tab_10K_reads_normalized.csv"), row.names=T)
 rm(esv_to_normalize_10k)
-
-save.image(paste0("DataCleaning/",Sys.Date(),"_DataCleaning_TempFile_Part2_8.RData"))
 ```
 
 ### @ count_track (samples)
@@ -1090,12 +1081,11 @@ For the normalized dataframe just created:
 - removed ESVs assigned to chloroplast, mitochondria, and kingdom NA
 - summed technical replicates and removed one sample that was uncorrelated with high reads
 - removed contaminant ESVs
-- removed the 11 blanks
+- removed the blanks
 - removed ESVs with less than 10 reads across all samples
 - normalized reads to ~10K reads
 
 ```{r}
-Sys.Date()
 # total number of reads
 sum(colSums(esv_tab_10knorm))
 
@@ -1107,64 +1097,4 @@ sum(colSums(esv_tab_10knorm))/(length(esv_tab_10knorm)) # these are all what we 
 
 # number of samples
 ncol(esv_tab_10knorm)
-
-#percent of samples removed from starting 555 samples
-1-(ncol(esv_tab_10knorm)/555) 
-
-#number of ESVs retained compared to the starting number of ESVs from count_track in Part 2, 2a
-nrow(esv_tab_10knorm)/122444
-
-
-# [1] "2024-01-19"
-# [1] 4919098
-# [1] 92845
-# [1] 10291
-# [1] 478
-# [1] 0.1387387
-# [1] 0.758265
 ```
-
-# Part 3: Create Phyloseq
-
-```{r}
-load("DataCleaning/2024-01-19_DataCleaning_TempFile_Part2_8.RData")
-metadata<-read.csv("Metadata/metadata_29Aug2022.csv",header=T,row.names = 1)
-
-# change East Glacier mislabeled sample from EG0308L2 to EG0318
-names(esv_tab_10knorm)[which(names(esv_tab_10knorm)=="EG0308L2")]<-"EG0318L"
-
-# check that metadata and ESV names match 
-table(rownames(metadata)%in%names(esv_tab_10knorm)) # all TRUE
-
-# check all samples are only sediment samples
-table(metadata$sample_type)
-
-# make sure no empty cells in the taxonomy table (these should all be NAs with the Silva138.1 reference database formatted for assigning taxonomy with DADA2)
-table(tax_tab[,]=="")
-#  FALSE 
-# 496605- 16 Jan 2024
-
-#covert taxa table to phyloseq sub-object
-tax_tab <-as.matrix(tax_tab)
-taxa_tab <- tax_table(tax_tab)
-
-# make sure there are no emtpy cells again once turned into phyloseq sub-object
-table(taxa_tab@.Data=="") # all FALSE
-
-#convert metadata and esv table to phyloseq sub-objects
-samp_dat <- sample_data(metadata)
-esv_tab_norm <- otu_table(esv_tab_10knorm, taxa_are_rows = T)
-ps <- phyloseq(esv_tab_norm, samp_dat, taxa_tab)
-
-#remove phyloseq sub-objects and objects (taxonomy table and esv_table) now stored in the phyloseq object
-rm(samp_dat)
-rm(esv_tab_norm)
-rm(taxa_tab)
-rm(tax_tab)
-rm(esv_tab_10knorm)
-
-#transform sample data
-ps_tr <- transform_sample_counts(ps, function(x) x / sum(x))
-#save final phyloseq object
-save.image(paste0(Sys.Date(),"_VonEggers_WyLakeSedMicrobes_Phyloseq.RData"))
-  ```

@@ -1,0 +1,88 @@
+---
+title: "16S Microbial Analysis from lake sediments, peat, and soils in Wyoming mountains"
+author: "Jordan Von Eggers"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# Load packages and report session info
+```{r}
+require(phyloseq)
+require(tidyverse)
+require(vegan)
+
+sessionInfo()
+```
+
+
+R version 4.4.0 (2024-04-24)
+
+other attached packages:
+ [1] vegan_2.6-6.1   lattice_0.22-6  permute_0.9-7   lubridate_1.9.3 forcats_1.0.0   stringr_1.5.1   dplyr_1.1.4     purrr_1.0.2     readr_2.1.5    
+[10] tidyr_1.3.1     tibble_3.2.1    ggplot2_3.5.1   tidyverse_2.0.0 phyloseq_1.48.0
+
+
+# Load data
+(this takes a few minutes)
+```{r}
+source("../3_CreatePhyloseq/3_CreatePhyloseq_ZOTUexact.R")
+variation<-"ZOTUexact"
+```
+
+# Custom theme
+```{r}
+  custom_theme <- function() {
+  theme_bw() +
+    theme(
+      text = element_text(color = "black", size = 13),
+      axis.text = element_text(color = "black",size = 13),
+      axis.title = element_text(color = "black",size = 13),
+      axis.title.x = element_text(margin = margin(t = 10)),
+      axis.title.y = element_text(margin = margin(r = 10)),
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+      plot.subtitle = element_text(hjust = 0.5, size = 12),
+      legend.text = element_text(size = 13),
+      legend.title = element_text(size = 13),
+      strip.text = element_text(size = 13, color = "black"))}
+```
+
+
+# NMDS
+```{r}
+set.seed(484)
+nmds <- ps %>% ordinate(., method = "NMDS", distance="bray")
+round(nmds$stress,digits=3)
+```
+Great stress score: 0.1388955!
+
+```{r}
+nmds_points <- as.data.frame(nmds$points) %>% rownames_to_column(var="sample_id")
+nmds_meta<-merge(nmds_points,metadata,by="sample_id")
+
+rm(nmds_points)
+
+
+cols<-c("dodgerblue2", "#E31A1C", # red
+  "green4")
+
+ggplot(data=nmds_meta, aes(x=MDS1, y=MDS2, color=sample_type))+
+        geom_point()+
+        scale_color_manual(values=cols) + 
+        custom_theme() +
+        labs(x = "NMDS1",
+             y = "NMDS2",
+             color= "Environment") +   
+        annotate("text", x = min(nmds_meta$MDS1), y = max(nmds_meta$MDS2), 
+           label = paste("Stress =", round(nmds$stress,digits=3)), 
+           hjust = 0, vjust = 1, size = 5)
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_NMDS_sample_type_",variation,".png"), height = 7, width=9, units="in")
+```
+
+
+Notes for meeting June 27, 2024:
+
+- May be worth removing samples that we know won't be in the analysis and repeat 1_RawSequenceProcessing step:
+        - MAWC possblank samples, Calder not top and bottom sediments, anything else?
+- Need to select the correct samples and rerun the ZOTUexact 2_DataCleaning step
+- May be worth looking at the ZOTU99, OTU99, OTU97 for 2_DataCleaning
