@@ -32,10 +32,10 @@ McLaren, Michael R., & Callahan, Benjamin J. (2021). Silva 138.1 prokaryotic SSU
 Merge the ZOTU/OTU id with the assigned taxonomy, based on the sequence in column one of the tax_table
 ```{r}
 # read in fasta file 
-fasta <- readDNAStringSet("../1_RawSequenceProcessing/output/OTU_97_no_chimeras_denovo.fa")
+fasta <- readDNAStringSet("../1_RawSequenceProcessing/output/ZOTU_no_chimeras_denovo.fa")
 
 # read in assigned taxonomy 
-tax_table<-read.csv("../1_RawSequenceProcessing/output/OTU_97_taxonomy_80_DADA2.csv", header=T)
+tax_table<-read.csv("../1_RawSequenceProcessing/output/ZOTU_taxonomy_80_DADA2.csv", header=T)
 colnames(tax_table)[1]<-"seq"
 ESVseq<-data.frame(seq=as.character(fasta), names=names(fasta))
 ESVseq$ESV<-str_split(ESVseq$names,pattern = ";", 3, simplify = T)[,1]
@@ -57,7 +57,7 @@ Put these into an "AssignTaxonomy" folder and then the final one in the "FinalTa
 
 ### a. Read in taxonomy table
 ```{r}
-tax_tab<-read.csv("Taxonomy/OTU_97_Silva138_assignedTaxonomy_toSpecies.csv", header=T,row.names=1)
+tax_tab<-read.csv("Taxonomy/ZOTU_Silva138_assignedTaxonomy_toSpecies.csv", header=T,row.names=1)
 table(tax_tab$Kingdom) # showing NO Eukaryotes
 unique(tax_tab$Kingdom) # when the cell is empty there is an NA
 ```
@@ -115,125 +115,32 @@ esv_table$X.OTU.ID<-NULL
 3.  remove any ESVs without reads
 
 ```{r}
-ESV_names<-unique(names(esv_table))
+ESV_names<-names(esv_table) keep<-read.csv("wanted_samples.csv",header=F) %>% pull(.,var=V1)
+positions_keep<-NULL 
+for(i in 1:length(keep)){
+positions_keep<-c(positions_keep, grep(keep[i], ESV_names)) }
 
-remove<-c("Calder.H24blank",
-"Calder.H3BL00_3",
-"Calder.H59BL01_1",
-"Calder.H6BL01_3",
-"Calder.H64BL00_1",
-"Calder.H66BL00_2",
-"Calder.H67BL07_2",
-"Calder.H7BL01_3",
-"Calder.H70BL10_2",
-"Calder.H72BL10_1",
-"Calder.H73BL07_1",
-"Calder.H74BL01_2",
-"Calder.H9BL10_3",
-"Calder.H29CL00_1",
-"Calder.H31CL01_2",
-"Calder.H34CL01_1",
-"Calder.H35CL07_3",
-"Calder.H36CL07_2",
-"Calder.H43CL00_3",
-"Calder.H46CL16_1",
-"Calder.H48CL00_2",
-"Calder.H51CL16_3",
-"Calder.H55CL16_2",
-"Calder.H61CL01_3",
-"Calder.H65CL07_1",
-"Calder.H11EG03_3",
-"Calder.H12EG01_2",
-"Calder.H13EG00_1",
-"Calder.H14EG06_2",
-"Calder.H15EG00_3",
-"Calder.H16EG01_3",
-"Calder.H17EG01_1",
-"Calder.H18EG03_2",
-"Calder.H19EG06_3",
-"Calder.H20EG00_2",
-"Calder.H21EG03_1",
-"Calder.H22EG06_1",
-"Calder.H5HL00_1",
-"Calder.H10HW00_1",
-"Calder.H4LW00_1",
-"Calder.H68LL00_2",
-"Calder.H38LO08_3",
-"Calder.H39LO08_1",
-"Calder.H40LO01_3",
-"Calder.H44LO08_2",
-"Calder.H45LO01_3",
-"Calder.H50LO05_1",
-"Calder.H52LO00_3",
-"Calder.H53LO05_3",
-"Calder.H54LO05_2",
-"Calder.H56LO00_1",
-"Calder.H57LO01_1",
-"Calder.H69LO00_2",
-"Calder.H2LS00_1",
-"Calder.H58ML00_2",
-"Calder.H1RL00_1",
-"Calder.H25SV06_3",
-"Calder.H28SV04_2",
-"Calder.H30SV01_3",
-"Calder.H32SV00_1",
-"Calder.H33SV04_1",
-"Calder.H41SV04_3",
-"Calder.H47SV00_3",
-"Calder.H49SV01_1",
-"Calder.H60SV01_2",
-"Calder.H62SV06_1",
-"Calder.H63SV00_2",
-"Calder.H71SV06_2",
-"Calder.H26SR00_1",
-"Calder.H23SG10_1",
-"Calder.H27SG00_1",
-"Calder.H37SG01_1",
-"Calder.H42SG15_1",
-
-
-"Calder.LWL0104L",
-"Calder.LW0100",
-"Calder.LL0404L",
-"Calder.RL0100L2",
-"Calder.RL0104L",
-"Calder.SV0100L",
-"Calder.SV0104L",
-"Calder.SM0100L",
-"Calder.SM0104L",
-"Calder.TL0100L2",
-"Calder.TL0104L",
-
-"MAWC.PossBlank_")
-
-
-
-positions_remove<-NULL
-for(i in 1:length(remove)){
-   positions_remove<-c(positions_remove, grep(remove[i], ESV_names))    
-}
-
+# this matched sometimes to multiple columns so make sure to unique this.
+positions_keep<-unique(positions_keep)
 # look at which samples are removed
-remove_df<-esv_table[,positions_remove]
-samp_names_rm<-str_split(names(remove_df),pattern = ".16S.", 2, simplify = T)[,1]
-rm(remove_df);rm(samp_names_rm)
+remove_df<-esv_table[,-positions_keep] (str_split(names(remove_df),pattern = ".16S.", 2, simplify = T)[,1])
 
+rm(remove_df)
 #overwrite esv_table with columns (samples) removed
-esv_table[,positions_remove]<-list(NULL)
-
+esv_table<-esv_table[,positions_keep]
 #remove ESVs without reads
-reads_per_esv<-as.data.frame(rowSums(esv_table))
-names(reads_per_esv)<-"reads"
-reads_per_esv$esv<-rownames(reads_per_esv)
+reads_per_esv<-as.data.frame(rowSums(esv_table)) 
+names(reads_per_esv)<-"reads" 
+reads_per_esv$esv<-rownames(reads_per_esv) 
 rownames(reads_per_esv)<-NULL
 
 # count ESVS with 0 reads after removing samples
 table(reads_per_esv$reads==0)
 
-# remove ESVs with 0 reads
-esv_table<-esv_table[which(reads_per_esv$reads>0),]
-
-rm(reads_per_esv); rm(i)
+# remove ESVs with 0 reads (if there are any)
+if(length(which(reads_per_esv$reads<1))>0){ esv_table<-esv_table[which(reads_per_esv$reads>0),]
+}
+rm(reads_per_esv); rm(i); rm(ESV_names);rm(keep);rm(positions_keep)
 ```
 
 ### @count_track (samples and blanks)

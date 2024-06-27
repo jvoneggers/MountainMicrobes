@@ -80,9 +80,12 @@ ggsave(device = "png",filename=paste0("../5_Figures/FigX_NMDS_sample_type_",vari
 ```
 
 
-Notes for meeting June 27, 2024:
+# Notes for meeting June 27, 2024:
 
 - May be worth removing samples that we know won't be in the analysis and repeat 1_RawSequenceProcessing step:
         - MAWC possblank samples, Calder not top and bottom sediments, anything else?
 - Need to select the correct samples and rerun the ZOTUexact 2_DataCleaning step
 - May be worth looking at the ZOTU99, OTU99, OTU97 for 2_DataCleaning
+
+
+# 27 June 2024 - Jordan Updating NMDS
