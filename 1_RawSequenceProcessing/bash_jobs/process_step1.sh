@@ -14,7 +14,7 @@ echo "cutadapt version:"
 cutadapt --version
 vsearch --version
 
-echo "Main options are error rate for cutadapt is 0.25 and the maxdiff for merging is 20 (increasing from default of 10 because there should be plenty of overlap with 40 basepairs). When I compared on the test files between 20 bp and 40 bp minovlen there was no change and only a few reads had overlaps too short. No difference for test samples for using 150 bp min merge length verses 200 on the test files. I left this at 150 because others using this region use a much shorter mininum merged length (UWyo Micro Project uses 60 which I think is too short since the averages I found for this V4 region online are 291, 300+, and 254 base pairs). The main loss of samples was when I went from maxdiffs 20 to 10, which makes sense because we have a lot of overlap, so left at 20 maxdiffs. I didn't increase maxdiffs because 95-98% of the reads merged in the test files. I did not truncate and join reads that did not merge."
+echo "This is being done on the subset of samples listed in subset_files/matching_filenames.csv which removes MAWC_possblank samples and Calder samples that are not 0-4 cm or 16-20 cm or are water samples (and a small number of Calder samples that should not be included). Main options are error rate for cutadapt is 0.25 and the maxdiff for merging is 20 (increasing from default of 10 because there should be plenty of overlap with 40 basepairs). When I compared on the test files between 20 bp and 40 bp minovlen there was no change and only a few reads had overlaps too short. No difference for test samples for using 150 bp min merge length verses 200 on the test files. I left this at 150 because others using this region use a much shorter mininum merged length (UWyo Micro Project uses 60 which I think is too short since the averages I found for this V4 region online are 291, 300+, and 254 base pairs). The main loss of samples was when I went from maxdiffs 20 to 10, which makes sense because we have a lot of overlap, so left at 20 maxdiffs. I didn't increase maxdiffs because 95-98% of the reads merged in the test files. I did not truncate and join reads that did not merge."
 
 echo "Make new directory for output files"
 cd /gscratch/jvonegge/MountainMicrobes/
@@ -74,9 +74,17 @@ mkdir step1
 mv *.fa step1
 mv *.fastq step1
 
+echo "Open working directory with files for step 2 (working with concatenated files)"
+cd /gscratch/jvonegge/MountainMicrobes/process/step2 || exit
+
+echo "############## Dereplicate ##############"
+
+vsearch -fastx_uniques seqs_samples.fa -fastaout unique_seqs.fa -sizeout -relabel Uniq_ || exit
+
 echo "Run next job (step 2)"
 cd /gscratch/jvonegge/MountainMicrobes/bash_jobs
-sbatch process_step2.sh 
+sbatch process_step2_ZOTU.sh 
+sbatch process_step2_OTU.sh 
 
 echo "deactivate conda environment"
 conda deactivate

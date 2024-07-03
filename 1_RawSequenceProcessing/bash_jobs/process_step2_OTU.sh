@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name OTU_step2
+#SBATCH --job-name st2_OTU
 #SBATCH --mem=100GB
 #SBATCH --time=1-00:00:00
 #SBATCH --cpus-per-task=32
@@ -19,19 +19,17 @@ date
 echo "Open working directory with files for step 2 (working with concatenated files)"
 cd /gscratch/jvonegge/MountainMicrobes/process/step2 || exit
 
+echo "Make new directory, move to directory"
+mkdir OTU
+cd /gscratch/jvonegge/MountainMicrobes/process/step2/OTU || exit
+
 echo "Set usearch_global (OTU) table ids"
 ids=(97 99)
-
-echo "Make new directory, copy starting file, move to directory"
-mkdir OTU
-cp unique_seqs.fa OTU
-cp seqs_samples.fa OTU
-cd /gscratch/jvonegge/MountainMicrobes/process/step2/OTU
 
 echo "############## Cluster classic ##############"
 
 echo "*************** Remove singletons region ***************"
-vsearch --sortbysize unique_seqs.fa \
+vsearch --sortbysize ../unique_seqs.fa \
         --output unique_seqs_no_singletons.fa \
         --minsize 2 --relabel OTU- \
         --sizein --sizeout || exit
@@ -53,7 +51,7 @@ vsearch --uchime_denovo OTU_${i}_centroid.fa --nonchimeras OTU_${i}_no_chimeras_
         || exit
 
 echo "*************** Make OTU tables ID: 0.$i  ***************"
-vsearch --usearch_global seqs_samples.fa \
+vsearch --usearch_global ../seqs_samples.fa \
         --db OTU_${i}_no_chimeras_denovo.fa \
         --otutabout OTU_table_${i} --id 0.${i} \
         --notrunclabels --threads 32 || exit
@@ -61,4 +59,5 @@ vsearch --usearch_global seqs_samples.fa \
 sed -i 's/^#OTU ID/OTUID/' OTU_table_${i}
 done
 
+conda deactivate
 date
