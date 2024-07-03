@@ -38,3 +38,6 @@ rsconnect/
 2_DataCleaning/ZOTU/
 2_DataCleaning/*.Rdata
 1_RawSequenceProcessing/output/
+1_RawSequenceProcessing/
+0_SequenceGathering
+2_DataCleaning
