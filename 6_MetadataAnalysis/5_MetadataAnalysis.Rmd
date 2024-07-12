@@ -1,0 +1,327 @@
+---
+title: "Mountain Microbe Environment Analysis"
+author: "Ioana Stefanescu"
+date: "2024-07-08"
+output: pdf_document
+---
+
+
+#1. Read in metadata and packages
+```{r}
+library(tidyverse)
+library(ggplot2)
+
+setwd("/Users/ioana/Desktop/MountainMicrobes/6_MetadataAnalysis")
+
+metadata<-read_csv("Metadata_for_keptsamples_ZOTUexact.csv")
+metadata$measured_temperature=as.numeric(metadata$measured_temperature)
+metadata$depth_end=as.numeric(metadata$depth_end)
+
+#get column names
+#colnames(metadata)
+
+env.vars <- metadata %>% 
+        select( sample_id,sample_type,latitude,longitude,elevation,depth_start, depth_end, top_bottom,measured_temperature,Tann,Tmin,Tmax,MAP,sample_number) %>% 
+        filter(str_detect(sample_type, "blank", negate = TRUE))  %>% 
+        filter(str_detect(sample_type, "MC_71", negate = TRUE))  
+
+```
+
+
+#a. Get sample number and variable ranges
+```{r}
+env.vars %>% 
+    count(sample_type)
+```
+
+
+
+#2. Plot sample depth intervals
+
+```{r}
+env.vars %>%
+        filter(str_detect(sample_type, "peat", negate = F)) %>%
+        arrange(depth_start) %>%    # order based on depth start 
+ggplot()+
+geom_segment( aes(x=reorder(sample_number,depth_start), y=depth_start, yend=depth_end),size=1,  colour="#fbd1a2") +
+theme(  panel.background = element_blank(),
+                text = element_text(color = "black", size = 13),
+                axis.line = element_line(color="black"),
+                axis.text.x  = element_blank(),
+                axis.title = element_text(color = "black",size = 13),
+                axis.title.x = element_text(margin = margin(t = 10)),
+                axis.title.y = element_text(margin = margin(r = 10)),
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                plot.subtitle = element_text(hjust = 0.5, size = 12),
+                legend.text = element_text(size = 10),
+                legend.title = element_text(size = 13),
+                strip.background = element_blank(), strip.text.x = element_blank()) +
+xlab("")+ ylab("Depth intercal (cm)")
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Samples_depths_Peat.png"), height = 5, width=9, units="in")
+
+
+env.vars %>%
+        filter(str_detect(sample_type, "soil", negate = F)) %>%
+        arrange(depth_start) %>%     # order based on depth start 
+ggplot()+
+geom_segment( aes(x=reorder(sample_number,depth_start), y=depth_start, yend=depth_end),size=1,  colour="#ef767a") +
+theme(  panel.background = element_blank(),
+                text = element_text(color = "black", size = 13),
+                axis.line = element_line(color="black"),
+                axis.text.x  = element_blank(),
+                axis.title = element_text(color = "black",size = 13),
+                axis.title.x = element_text(margin = margin(t = 10)),
+                axis.title.y = element_text(margin = margin(r = 10)),
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                plot.subtitle = element_text(hjust = 0.5, size = 12),
+                legend.text = element_text(size = 10),
+                legend.title = element_text(size = 13),
+                strip.background = element_blank(), strip.text.x = element_blank()) +
+xlab("")+ ylab("Depth intercal (cm)")
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Samples_depths_Soil.png"), height = 5, width=9, units="in")
+
+
+env.vars %>%
+        filter(str_detect(sample_type, "sediment", negate = F)) %>%
+        arrange(depth_start) %>%     # order based on depth start 
+ggplot()+
+geom_segment( aes(x=reorder(sample_number,depth_start), y=depth_start, yend=depth_end),size=1,  colour="#A1C7E0") +
+theme(  panel.background = element_blank(),
+                text = element_text(color = "black", size = 13),
+                axis.line = element_line(color="black"),
+                axis.text.x  = element_blank(),
+                axis.title = element_text(color = "black",size = 13),
+                axis.title.x = element_text(margin = margin(t = 10)),
+                axis.title.y = element_text(margin = margin(r = 10)),
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                plot.subtitle = element_text(hjust = 0.5, size = 12),
+                legend.text = element_text(size = 10),
+                legend.title = element_text(size = 13),
+                strip.background = element_blank(), strip.text.x = element_blank()) +
+xlab("")+ ylab("Depth intercal (cm)")
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Samples_depths_Sediment.png"), height = 5, width=9, units="in")
+```
+
+#3. Get elevation raster and US states boundries
+```{r}
+library(elevatr)
+library(terra)
+
+lat.min= min(env.vars$latitude, na.rm=T)
+lat.max=max(env.vars$latitude, na.rm=T)
+long.min= min(env.vars$longitude, na.rm=T)
+long.max= max(env.vars$longitude, na.rm=T)
+
+set.seed(65.7)
+examp_df <- data.frame(x = runif(10, -111, max = -103.3), y = runif(10, 36.8,46.5))
+
+#prj_dd <- "EPSG:4326"
+prj_dd="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+df_elev_epqs <- get_elev_point(examp_df, prj = prj_dd, src = "epqs")
+elevation <- get_elev_raster(df_elev_epqs, z = 9)
+obj_raster <- rast(elevation) 
+names(obj_raster)="elevation" # Change weird name to "elevation"
+
+library("tidyterra")
+library(sf)
+usa <- st_as_sf(maps::map("state", fill=TRUE, plot =FALSE)) # get state boundaries
+
+```
+
+#a. Plot sites map
+```{r}
+ggplot() +
+  geom_spatraster(data = obj_raster, aes(fill = elevation)) +
+  geom_sf(data=usa, color = "#2b2b2b", fill = "transparent", size=0.125) +
+  geom_point(data=env.vars, aes(longitude, latitude,color=sample_type),shape=16,size=3)+
+        scale_colour_manual(values = c("#fbd1a2", "#A1C7E0", "#ef767a")) +
+        scale_fill_gradientn(colours = rev(c("grey30", "#4D4D4D",  "#838383" , "#B5B5B5" ,"grey90", "grey95")),
+                limits= c(900,3850), n.breaks=10) +
+        theme_classic()+
+  scale_x_continuous(limits=c(-111,-104), expand=c(0,0))+
+  scale_y_continuous(limits=c(37.65,45.3), expand=c(0,0))+
+        labs(fill='Elevation (m)', color="Sample type") 
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Samples_map.png"), height = 9, width=9, units="in")
+```
+  
+
+
+#4. Plot metadata histograms: Elevation, Tmean, Tmin, Tmax, MAP
+```{r}
+library(tidyverse)
+library(ggtext)
+
+env.vars %>% count(sample_type)
+
+#min(env.vars$elevation, na.rm=T)
+#max(env.vars$elevation, na.rm=T)
+ggplot(env.vars, aes(elevation,  fill = sample_type)) + 
+        geom_histogram(binwidth = (40),boundary=10, color="black", size=0.2) +
+        facet_wrap(~sample_type, ncol = 1)+
+        theme(  panel.background = element_blank(),
+                text = element_text(color = "black", size = 13),
+                axis.line = element_line(color="black"),
+                axis.text = element_text(color = "black",size = 13),
+                axis.title = element_text(color = "black",size = 13),
+                axis.title.x = element_text(margin = margin(t = 10)),
+                axis.title.y = element_text(margin = margin(r = 10)),
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                plot.subtitle = element_text(hjust = 0.5, size = 12),
+                legend.text = element_text(size = 10),
+                legend.title = element_text(size = 13),
+                strip.background = element_blank(), strip.text.x = element_blank()) +
+scale_fill_manual(values = c("#fbd1a2", "#A1C7E0", "#ef767a"),  labels=c( "peat (n=339)", "sediment (n=193)", "soil (n=77)")) +        scale_x_continuous(limits=c(2,12.5), breaks = seq(2,12,by=2), expand=c(0,0))+
+        scale_x_continuous(limits=c(1750,3400), breaks = seq(1800,3400,by=200), expand=c(0,0))+
+        scale_y_continuous(expand=c(0,0))+
+        xlab("Elevation (m)")+
+        labs(fill='') 
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Climate_Elevation.png"), height = 5, width=9, units="in")
+
+ggplot(env.vars, aes(measured_temperature,  fill = sample_type)) + 
+        geom_histogram(binwidth = (1),boundary=10, color="black", size=0.2) +
+        facet_wrap(~sample_type, ncol = 1)+
+        theme(  panel.background = element_blank(),
+                text = element_text(color = "black", size = 13),
+                axis.line = element_line(color="black"),
+                axis.text = element_text(color = "black",size = 13),
+                axis.title = element_text(color = "black",size = 13),
+                axis.title.x = element_text(margin = margin(t = 10)),
+                axis.title.y = element_text(margin = margin(r = 10)),
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                plot.subtitle = element_text(hjust = 0.5, size = 12),
+                legend.text = element_text(size = 10),
+                legend.title = element_text(size = 13),
+                strip.background = element_blank(), strip.text.x = element_blank()) +
+scale_fill_manual(values = c("#fbd1a2", "#A1C7E0", "#ef767a"),  labels=c( "peat (n=339)", "sediment (n=193)", "soil (n=77)")) +        scale_x_continuous(limits=c(2,12.5), breaks = seq(2,12,by=2), expand=c(0,0))+
+        scale_x_continuous(limits=c(0,32), breaks = seq(0,32,by=2), expand=c(0,0))+
+        scale_y_continuous(expand=c(0,0))+
+        xlab("Measured sample temperature (C)")+
+        labs(fill='') 
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Climate_Measured_Temperature.png"), height = 5, width=9, units="in")
+
+
+ggplot(env.vars, aes(Tann,  fill = sample_type)) + 
+        geom_histogram(binwidth = 0.2, color="black", size=0.2) +
+        facet_wrap(~sample_type, ncol = 1)+
+        theme(  panel.background = element_blank(),
+                text = element_text(color = "black", size = 13),
+                axis.line = element_line(color="black"),
+                axis.text = element_text(color = "black",size = 13),
+                axis.title = element_text(color = "black",size = 13),
+                axis.title.x = element_text(margin = margin(t = 10)),
+                axis.title.y = element_text(margin = margin(r = 10)),
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                plot.subtitle = element_text(hjust = 0.5, size = 12),
+                legend.text = element_text(size = 10),
+                legend.title = element_text(size = 13),
+                strip.background = element_blank(), strip.text.x = element_blank()) +
+scale_fill_manual(values = c("#fbd1a2", "#A1C7E0", "#ef767a"),  labels=c( "peat (n=339)", "sediment (n=193)", "soil (n=77)")) +        scale_x_continuous(limits=c(2,12.5), breaks = seq(2,12,by=2), expand=c(0,0))+
+        scale_x_continuous(limits=c(-4,6), breaks = seq(-4,6,by=2), expand=c(0,0))+
+        scale_y_continuous(expand=c(0,0))+
+        xlab("Mean annual air temperature (C)")+
+        labs(fill='') 
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Climate_Tann.png"), height = 5, width=9, units="in")
+
+ggplot(env.vars, aes(Tmin,  fill = sample_type)) + 
+        geom_histogram(binwidth = 0.2, color="black", size=0.2) +
+        facet_wrap(~sample_type, ncol = 1)+
+        theme(  panel.background = element_blank(),
+                text = element_text(color = "black", size = 13),
+                axis.line = element_line(color="black"),
+                axis.text = element_text(color = "black",size = 13),
+                axis.title = element_text(color = "black",size = 13),
+                axis.title.x = element_text(margin = margin(t = 10)),
+                axis.title.y = element_text(margin = margin(r = 10)),
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                plot.subtitle = element_text(hjust = 0.5, size = 12),
+                legend.text = element_text(size = 10),
+                legend.title = element_text(size = 13),
+                strip.background = element_blank(), strip.text.x = element_blank()) +
+scale_fill_manual(values = c("#fbd1a2", "#A1C7E0", "#ef767a"),  labels=c( "peat (n=339)", "sediment (n=193)", "soil (n=77)")) +        scale_x_continuous(limits=c(2,12.5), breaks = seq(2,12,by=2), expand=c(0,0))+
+        scale_y_continuous(expand=c(0,0))+
+        xlab("Minimum air temperature (C)")+
+        labs(fill='') 
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Climate_Tmin.png"), height = 5, width=9, units="in")
+
+ggplot(env.vars, aes(Tmax,  fill = sample_type)) + 
+        geom_histogram(binwidth = 0.2, color="black", size=0.2) +
+        facet_wrap(~sample_type, ncol = 1)+
+        theme(  panel.background = element_blank(),
+                text = element_text(color = "black", size = 13),
+                axis.line = element_line(color="black"),
+                axis.text = element_text(color = "black",size = 13),
+                axis.title = element_text(color = "black",size = 13),
+                axis.title.x = element_text(margin = margin(t = 10)),
+                axis.title.y = element_text(margin = margin(r = 10)),
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                plot.subtitle = element_text(hjust = 0.5, size = 12),
+                legend.text = element_text(size = 10),
+                legend.title = element_text(size = 13),
+                strip.background = element_blank(), strip.text.x = element_blank()) +
+scale_fill_manual(values = c("#fbd1a2", "#A1C7E0", "#ef767a"),  labels=c( "peat (n=339)", "sediment (n=193)", "soil (n=77)")) +        scale_x_continuous(limits=c(2,12.5), breaks = seq(2,12,by=2), expand=c(0,0))+
+        scale_y_continuous(expand=c(0,0))+
+        xlab("Maximum air temperature (C)")+
+        labs(fill='') 
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Climate_Tmax.png"), height = 5, width=9, units="in")
+
+
+ggplot(env.vars, aes(MAP,  fill = sample_type)) + 
+        geom_histogram(binwidth = 30, color="black", size=0.2) +
+        facet_wrap(~sample_type, ncol = 1)+
+        theme(  panel.background = element_blank(),
+                text = element_text(color = "black", size = 13),
+                axis.line = element_line(color="black"),
+                axis.text = element_text(color = "black",size = 13),
+                axis.title = element_text(color = "black",size = 13),
+                axis.title.x = element_text(margin = margin(t = 10)),
+                axis.title.y = element_text(margin = margin(r = 10)),
+                plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+                plot.subtitle = element_text(hjust = 0.5, size = 12),
+                legend.text = element_text(size = 10),
+                legend.title = element_text(size = 13),
+                strip.background = element_blank(), strip.text.x = element_blank()) +
+scale_fill_manual(values = c("#fbd1a2", "#A1C7E0", "#ef767a"),  labels=c( "peat (n=339)", "sediment (n=193)", "soil (n=77)")) +        scale_x_continuous(limits=c(2,12.5), breaks = seq(2,12,by=2), expand=c(0,0))+
+        scale_y_continuous(expand=c(0,0))+
+        xlab("Mean Annual Precipitation (mm)")+
+        labs(fill='') 
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Climate_MAP.png"), height = 5, width=9, units="in")
+```
+
+
+
+#Questions for next meeting
+1. Should we divide the sampling depths into surface vs deep samples? How are we going to treat the different depths?
+
+2. Dulcinea: These samples are in the 16S data but not in the Metadata: "MAWC.CR1A"        "MAWC.CR1B"        "MAWC.FR1A"        "MAWC.FR1B"        "MAWC.RR1A"        "MAWC.RR1B"  
+Any toughts on why this is?
+
+3. Jordan: These samples are in the metadata but not in the ESC file? Were all these samples removed by cleaning?
+print(diffs)
+ [1] "Calder.Blank3"              "Calder.JC_Blank1"           "Calder.JC_Blank2"           "Calder.JC_Blank3"          
+ [5] "Calder.JC7_Blank1"          "Calder.JC7_Blank2"          "Calder.JC7_Blank3"          "Calder.JC7_Blank4"         
+ [9] "Calder.JC7_Blank5"          "Calder.JC7_Blank6"          "Calder.JC7_Blank7"          "MAWC.BLANK"                
+[13] "MAWC.BLANK1_DG1"            "MAWC.BLANK2_DG2"            "MAWC.BLANK3_DG3"            "MAWC.BLANK4_DG4_BLANK4_DG4"
+[17] "SNOTEL.IOANA_D12"           "SNOTEL.IOANA_E12"           "SNOTEL.IOANA_F12"           "SNOTEL.IOANA_H12"          
+[21] "MAWC.CC1A"                  "MAWC.LBFL21_5_14_15_cm"     "MAWC.LBFL21_5_16_17_cm"     "MAWC.LBFL21_5_18_19_cm"    
+[25] "MAWC.LBFL21_5_20_21_cm"     "MAWC.LBFL21_5_22_23_cm"     "MAWC.LBFL21_5_8_9_cm"       "MAWC.LL3B_J"               
+[29] "MAWC.LZ2B"                  "MAWC.ME1A_S"                "SNOTEL.IOANA_A11"           "SNOTEL.IOANA_B11"          
+[33] "SNOTEL.IOANA_C10"           "SNOTEL.IOANA_C11"           "SNOTEL.IOANA_C12"           "SNOTEL.IOANA_D10"          
+[37] "SNOTEL.IOANA_D11"           "SNOTEL.IOANA_E10"           "SNOTEL.IOANA_E11"           "SNOTEL.IOANA_F10"          
+[41] "SNOTEL.IOANA_F11"           "SNOTEL.IOANA_G10"           "SNOTEL.IOANA_G11"           "SNOTEL.IOANA_H11"     
+
+
+
+
+
+
+        
+        
+        
+

@@ -1,6 +1,6 @@
 ---
 title: "16S Microbial Analysis from lake sediments, peat, and soils in Wyoming mountains"
-author: "Jordan Von Eggers"
+author: "Created by Jordan Von Eggers, modified by Ioana Stefanscu"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
@@ -46,6 +46,11 @@ variation<-"ZOTUexact"
       strip.text = element_text(size = 13, color = "black"))}
 ```
 
+#Remove samples ???
+```{r}
+# to_remove <- c("Sample1", "Sample5", "Sample10", "Sample30")
+# ps<- prune_samples(!(sample_names(ps) %in% to_remove), ps)
+```
 
 # NMDS
 ```{r}
@@ -54,6 +59,7 @@ nmds <- ps %>% ordinate(., method = "NMDS", distance="bray")
 round(nmds$stress,digits=3)
 ```
 Great stress score: 0.1388955!
+Updated score:  0.1394602  Ioana Stefanescu, 07.09.2024
 
 ```{r}
 nmds_points <- as.data.frame(nmds$points) %>% rownames_to_column(var="sample_id")
@@ -62,30 +68,120 @@ nmds_meta<-merge(nmds_points,metadata,by="sample_id")
 rm(nmds_points)
 
 
-cols<-c("dodgerblue2", "#E31A1C", # red
-  "green4")
+environmental.envfit= envfit(nmds ~latitude+ longitude+ elevation + depth_start+
+depth_end+ Tann+ Tmin+ Tmax+ MAP, data=metadata, perm=1000,na.rm=T)   
 
-ggplot(data=nmds_meta, aes(x=MDS1, y=MDS2, color=sample_type))+
-        geom_point()+
+env.vectors <- as.data.frame(scores(environmental.envfit, display = "vectors"))* ordiArrowMul(environmental.envfit)
+env.vectors.pval <- env.vectors %>% mutate(p=environmental.envfit$vectors$pvals,    Variable=row.names(env.vectors))  %>% 
+        filter(p<0.05) 
+
+
+
+
+cols<-c("#fbd1a2", "#A1C7E0", "#ef767a")
+
+ggplot()+
+        geom_point(data=nmds_meta, aes(x=MDS1, y=MDS2, color=sample_type, size=depth_start))+
         scale_color_manual(values=cols) + 
         custom_theme() +
         labs(x = "NMDS1",
              y = "NMDS2",
-             color= "Environment") +   
+             color= "Environment",
+             size="Depth (cm)") +   
         annotate("text", x = min(nmds_meta$MDS1), y = max(nmds_meta$MDS2), 
            label = paste("Stress =", round(nmds$stress,digits=3)), 
-           hjust = 0, vjust = 1, size = 5)
+           hjust = 0, vjust = 1, size = 5) +
+ geom_segment(data = env.vectors.pval, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), 
+        size =1, alpha = 0.5, colour = "black", arrow = arrow(length=unit(2, "mm")), lwd=0.5) +
+ geom_text(data = env.vectors.pval, aes(x = NMDS1, y = NMDS2, label = Variable),
+            size = 5)
 
-ggsave(device = "png",filename=paste0("../5_Figures/FigX_NMDS_sample_type_",variation,".png"), height = 7, width=9, units="in")
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_NMDS_sample_type_envfit",variation,".png"), height = 7, width=9, units="in")
 ```
 
 
-# Notes for meeting June 27, 2024:
+# Merge samples by site
+```{r}
 
+#create another column in the metadata with factored sample_type. This is because sample type and sample id dissapears when summing samples within sites.
+sample_type.ps<- data.frame(ps@sam_data$sample_type)
+colnames(sample_type.ps)
+sample_type.ps<-  sample_type.ps %>% mutate(sample_type.factored = as.numeric(factor(ps.sam_data.sample_type)))
+
+#Add sample_type_factored column to sample data 
+sample_data(ps)$sample_type_factored <- as.integer(sample_type.ps$sample_type.factored)
+
+# Merge samples by site 
+ps.merged.by.site<- merge_samples(ps, "site_name") # summed by site
+
+#get factored "sample_type" and assign character then add it to sample_data of merged samples
+to_change<- as.data.frame(ps.merged.by.site@sam_data$sample_type_factored)
+colnames(to_change)<- "sample_type_factored"
+to_change<- to_change %>%
+  mutate(sample_type_merged = case_when(sample_type_factored==1 ~ "peat",
+                                       sample_type_factored==2 ~ "sediment",
+                                       sample_type_factored==3~"soil"))
+
+sample_data(ps.merged.by.site)$sample_type_merged <- as.character(to_change$sample_type_merged)
+
+
+# transform counts
+ps_tr.merged.by.site <- transform_sample_counts(ps.merged.by.site, function(x) x / sum(x))
+# Gloom by kingdom
+ps.merged.by.site.kingdom= tax_glom(ps_tr.merged.by.site, "Kingdom")
+# Gloom by phylum
+ps.merged.by.site.phylum= tax_glom(ps_tr.merged.by.site, "Phylum")
+
+
+
+plot_bar(ps.merged.by.site.kingdom, fill = "Kingdom", title = "Merged samples by site") + 
+  geom_bar(aes( fill=Kingdom, color=NULL), stat="identity", position="stack") + 
+  facet_grid(~sample_type_merged, scales="free")+
+  theme(plot.title = element_text(hjust=0.5, size=20), 
+        panel.background = element_rect(color="black",fill="transparent", size=0.5),
+        legend.text = element_text(size=10), 
+        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=0.1, vjust=0.5),
+        axis.text.y=element_text(size=12),
+        legend.title = element_text(size=12),
+        legend.key.size = unit(0.5, 'cm')) +
+  guides(fill=guide_legend(ncol=1))+ labs(x="", y="% taxa")+
+  scale_x_discrete()
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Kingdom_merged_by_site_",variation,".png"), height = 7, width=9, units="in")
+
+
+plot_bar(ps.merged.by.site.phylum, fill = "Phylum", title = "Merged samples by site") + 
+  geom_bar(aes( fill=Phylum, color=NULL), stat="identity", position="stack") + 
+  facet_grid(~sample_type_merged, scales="free")+
+  theme(plot.title = element_text(hjust=0.5, size=20), 
+        panel.background = element_rect(color="black",fill="transparent", size=0.5),
+        legend.text = element_text(size=5), 
+        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=5, vjust=0.5),
+        axis.text.y=element_text(size=12),
+        legend.title = element_text(size=5),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.position = "right") +
+  guides(fill=guide_legend(ncol=4))+ labs(x="", y="% taxa")+
+  scale_x_discrete()
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Phylum_merged_by_site_",variation,".png"), height = 7, width=15, units="in")
+
+```
+
+# Notes for meeting June 27, 2024:
 - May be worth removing samples that we know won't be in the analysis and repeat 1_RawSequenceProcessing step:
         - MAWC possblank samples, Calder not top and bottom sediments, anything else?
 - Need to select the correct samples and rerun the ZOTUexact 2_DataCleaning step
 - May be worth looking at the ZOTU99, OTU99, OTU97 for 2_DataCleaning
 
 
+# Notes for meeting next, July 2024????
+Do we want to merge samples by depth?
+What other posibilities are there for merging samples?
+
+
 # 27 June 2024 - Jordan Updating NMDS
+# July 9&10, 2024 - Ioana Updating NMDS
