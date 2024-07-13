@@ -6,11 +6,20 @@ require(tidyverse)
 #Add date and name below if modifying or rerunning this script
 ####### 07.09.2024 Modified by Ioana Stefanescu
 
+# JV comment - if you put the files in the same folder it can shorthand to them with the ".." and then we can all run the 3_CreatePhyloseq.R script (it wasn't working on my computer anymore because you put in the full path that connected to your desktop). I'll comment this out so that you can still see it but change it back so that we can all load the data this way! It should work the same for you as well.
 
-setwd("/Users/ioana/Desktop/MountainMicrobes/4_DataAnalysis")
+# 
+# setwd("/Users/ioana/Desktop/MountainMicrobes/4_DataAnalysis")
+# 
+# ### a. read in metadata tables
+# metadata<-read.csv("/Users/ioana/Desktop/MountainMicrobes/6_MetadataAnalysis/2024-07-08_mountain_microbes_sample_metadata.csv",  header=T)
+# metadata<- metadata[!metadata$sample_type == "MC_71", ] # remove the one unidentified soil sample Ioana_G12
+# rownames(metadata)<-metadata$sample_id
+
+
 
 ### a. read in metadata tables
-metadata<-read.csv("/Users/ioana/Desktop/MountainMicrobes/6_MetadataAnalysis/2024-07-08_mountain_microbes_sample_metadata.csv",  header=T)
+metadata<-read.csv("../6_MetadataAnalysis/2024-07-08_mountain_microbes_sample_metadata.csv",  header=T)
 metadata<- metadata[!metadata$sample_type == "MC_71", ] # remove the one unidentified soil sample Ioana_G12
 rownames(metadata)<-metadata$sample_id
 
@@ -27,6 +36,8 @@ diffs = setdiff(names(rarefied_esv_table), metadata$sample_id)
 #Check which samples are in the Metadata file but not in the ESV
 diffs = setdiff(metadata$sample_id,names(rarefied_esv_table)) 
 #print(diffs)
+
+rm(diffs) # JV - removed this so it doesn't show up in the final output
 
 
 ### c. Put into Phyloseq
