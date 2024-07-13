@@ -454,7 +454,7 @@ ggsave(device = "png",filename=paste0("../5_Figures/FigX_Community_similarity_ge
 
 
 
-# Shared ESVs
+# Shared ESVs - not started
 ```{r}
 #calculate
 shared_esvs <- phyloseq_num_shared_otus(ps)
