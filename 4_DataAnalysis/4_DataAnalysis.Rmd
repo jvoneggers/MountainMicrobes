@@ -52,6 +52,23 @@ variation<-"ZOTUexact"
 # ps<- prune_samples(!(sample_names(ps) %in% to_remove), ps)
 ```
 
+
+
+#Richness
+```{r}
+richness <- estimate_richness(ps)
+head(richness)
+
+plot_richness(ps, x="sample_id", color="sample_type", measures=c("Observed"))+
+        theme(panel.background = element_blank(),
+              panel.border = element_rect(fill="transparent"),
+              axis.text.x = element_text(size=2))
+
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Alpha_diversity",variation,".png"), height = 7, width=9, units="in")
+        
+```
+
 # NMDS
 ```{r}
 set.seed(484)
@@ -103,17 +120,18 @@ ggsave(device = "png",filename=paste0("../5_Figures/FigX_NMDS_sample_type_envfit
 
 # Merge samples by site
 ```{r}
-
-#create another column in the metadata with factored sample_type. This is because sample type and sample id dissapears when summing samples within sites.
+#create another column in the metadata with factored sample_type. This is because sample type and sample id disappears when summing samples within sites.
 sample_type.ps<- data.frame(ps@sam_data$sample_type)
 colnames(sample_type.ps)
 sample_type.ps<-  sample_type.ps %>% mutate(sample_type.factored = as.numeric(factor(ps.sam_data.sample_type)))
 
+
 #Add sample_type_factored column to sample data 
 sample_data(ps)$sample_type_factored <- as.integer(sample_type.ps$sample_type.factored)
-
 # Merge samples by site 
 ps.merged.by.site<- merge_samples(ps, "site_name") # summed by site
+#add back site name in column
+sample_data(ps.merged.by.site)$site_name_relabeled <-rownames(ps.merged.by.site@sam_data)
 
 #get factored "sample_type" and assign character then add it to sample_data of merged samples
 to_change<- as.data.frame(ps.merged.by.site@sam_data$sample_type_factored)
@@ -123,8 +141,9 @@ to_change<- to_change %>%
                                        sample_type_factored==2 ~ "sediment",
                                        sample_type_factored==3~"soil"))
 
-sample_data(ps.merged.by.site)$sample_type_merged <- as.character(to_change$sample_type_merged)
+sample_data(ps.merged.by.site)$sample_type_merged <-to_change$sample_type_merged
 
+ps.merged.by.site.samp.dat=data.frame(ps.merged.by.site@sam_data)
 
 # transform counts
 ps_tr.merged.by.site <- transform_sample_counts(ps.merged.by.site, function(x) x / sum(x))
@@ -135,17 +154,18 @@ ps.merged.by.site.phylum= tax_glom(ps_tr.merged.by.site, "Phylum")
 
 
 
-plot_bar(ps.merged.by.site.kingdom, fill = "Kingdom", title = "Merged samples by site") + 
+plot_bar(ps.merged.by.site.phylum, fill = "Kingdom", title = "Merged samples by site") + 
   geom_bar(aes( fill=Kingdom, color=NULL), stat="identity", position="stack") + 
   facet_grid(~sample_type_merged, scales="free")+
   theme(plot.title = element_text(hjust=0.5, size=20), 
         panel.background = element_rect(color="black",fill="transparent", size=0.5),
-        legend.text = element_text(size=10), 
+        legend.text = element_text(size=5), 
         axis.title.y = element_text(size=16),
-        axis.text.x = element_text(size=0.1, vjust=0.5),
+        axis.text.x = element_text(size=5, vjust=0.5),
         axis.text.y=element_text(size=12),
-        legend.title = element_text(size=12),
-        legend.key.size = unit(0.5, 'cm')) +
+        legend.title = element_text(size=5),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.position = "right") +
   guides(fill=guide_legend(ncol=1))+ labs(x="", y="% taxa")+
   scale_x_discrete()
 
@@ -171,6 +191,57 @@ ggsave(device = "png",filename=paste0("../5_Figures/FigX_Phylum_merged_by_site_"
 
 ```
 
+
+# Get common taxa across environments
+```{r}
+#remotes::install_github('schuyler-smith/phylosmith')
+library(phylosmith)
+merged.common.taxa<- common_taxa(ps_tr.merged.by.site, treatment="sample_type_merged", n = "all")
+
+ps.merged.common.subset <- subset(otu_table(ps_tr.merged.by.site), select = colnames(otu_table(ps_tr.merged.by.site)) %in% merged.common.taxa)
+ps.merged.common <- merge_phyloseq(ps.merged.common.subset, tax_table(ps_tr.merged.by.site), sample_data(ps_tr.merged.by.site))
+
+
+plot_bar(ps.merged.common, fill = "Phylum", title = "Shared taxa by site") + 
+  geom_bar(aes( fill=Phylum, color=NULL), stat="identity", position="stack") + 
+  facet_grid(~sample_type_merged, scales="free") +
+  theme(plot.title = element_text(hjust=0.5, size=20), 
+        panel.background = element_rect(color="black",fill="transparent", size=0.5),
+        legend.text = element_text(size=5), 
+        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=5, vjust=0.5),
+        axis.text.y=element_text(size=12),
+        legend.title = element_text(size=5),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.position = "right") +
+  guides(fill=guide_legend(ncol=1))+ labs(x="", y="% taxa")+
+  scale_x_discrete()
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Shared_phylum_by_site_",variation,".png"), height = 7, width=15, units="in")
+
+```
+
+
+#Get top taxa by environment  #### needs work, not finished #####
+```{r}
+data.ps <-ps_tr %>%
+  tax_glom("Phylum") %>%
+  psmelt() %>%
+  as_tibble()
+
+# highest abundance: all samples within each environment pooled together
+data.ps %>%
+  group_by(Phylum) %>%
+  summarise(Abundance = mean(Abundance)) %>%
+  group_by(sample_type) %>%
+  arrange(-Abundance)%>%
+  print(n=15)
+
+```
+
+
+
+
 # Notes for meeting June 27, 2024:
 - May be worth removing samples that we know won't be in the analysis and repeat 1_RawSequenceProcessing step:
         - MAWC possblank samples, Calder not top and bottom sediments, anything else?
@@ -185,3 +256,5 @@ What other posibilities are there for merging samples?
 
 # 27 June 2024 - Jordan Updating NMDS
 # July 9&10, 2024 - Ioana Updating NMDS
+# July 12, 2024 - Ioana Updating NMDS
+
