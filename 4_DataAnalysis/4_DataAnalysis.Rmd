@@ -5,6 +5,13 @@ date: "`r Sys.Date()`"
 output: pdf_document
 ---
 
+
+## June 27, 2024 - Jordan Updating NMDS
+## July 9-10, 2024 - Ioana Updating NMDS
+## July 12, 2024 - Ioana Updating NMDS
+## July 16, 2024 - Ioana working on shared and not shared taxa, top taxa by environment, and statistically significant taxa between environemnts
+
+
 # Load packages and report session info
 ```{r}
 require(phyloseq)
@@ -16,11 +23,12 @@ require(reshape2)
 require(metagMisc)
 require(RColorBrewer)
 require(geosphere)
+library(phylosmith)
 
 # #installation for metagMisc
 # install.packages("remotes")
 # remotes::install_github("vmikk/metagMisc")
-
+#remotes::install_github('schuyler-smith/phylosmith')
 sessionInfo()
 ```
 
@@ -61,8 +69,6 @@ source("../3_CreatePhyloseq/3_CreatePhyloseq_ZOTUexact.R")
 # ps<- prune_samples(!(sample_names(ps) %in% to_remove), ps)
 ```
 
-
-
 #Richness
 ```{r}
 richness <- estimate_richness(ps)
@@ -75,7 +81,6 @@ plot_richness(ps, x="sample_id", color="sample_type", measures=c("Observed"))+
 
 
 ggsave(device = "png",filename=paste0("../5_Figures/FigX_Alpha_diversity",variation,".png"), height = 7, width=9, units="in")
-        
 ```
 
 # NMDS
@@ -155,12 +160,14 @@ ps.merged.by.site.samp.dat=data.frame(ps.merged.by.site@sam_data)
 
 # transform counts
 ps_tr.merged.by.site <- transform_sample_counts(ps.merged.by.site, function(x) x / sum(x))
+
+
+```
+
+### Plot bars at kingdom and phylum levels 
+```{r}
 # Gloom by kingdom
 ps.merged.by.site.kingdom= tax_glom(ps_tr.merged.by.site, "Kingdom")
-# Gloom by phylum
-ps.merged.by.site.phylum= tax_glom(ps_tr.merged.by.site, "Phylum")
-
-
 
 plot_bar(ps.merged.by.site.phylum, fill = "Kingdom", title = "Merged samples by site") + 
   geom_bar(aes( fill=Kingdom, color=NULL), stat="identity", position="stack") + 
@@ -180,6 +187,8 @@ plot_bar(ps.merged.by.site.phylum, fill = "Kingdom", title = "Merged samples by 
 ggsave(device = "png",filename=paste0("../5_Figures/FigX_Kingdom_merged_by_site_",variation,".png"), height = 7, width=9, units="in")
 
 
+# Gloom by phylum
+ps.merged.by.site.phylum= tax_glom(ps_tr.merged.by.site, "Phylum")
 plot_bar(ps.merged.by.site.phylum, fill = "Phylum", title = "Merged samples by site") + 
   geom_bar(aes( fill=Phylum, color=NULL), stat="identity", position="stack") + 
   facet_grid(~sample_type_merged, scales="free")+
@@ -200,17 +209,28 @@ ggsave(device = "png",filename=paste0("../5_Figures/FigX_Phylum_merged_by_site_"
 ```
 
 
-# Get common taxa across environments
+# Get shared and not shared taxa across environments
 ```{r}
-#remotes::install_github('schuyler-smith/phylosmith')
-library(phylosmith)
+# get taxa  common across all 3 environments
 merged.common.taxa<- common_taxa(ps_tr.merged.by.site, treatment="sample_type_merged", n = "all")
 
 ps.merged.common.subset <- subset(otu_table(ps_tr.merged.by.site), select = colnames(otu_table(ps_tr.merged.by.site)) %in% merged.common.taxa)
+
 ps.merged.common <- merge_phyloseq(ps.merged.common.subset, tax_table(ps_tr.merged.by.site), sample_data(ps_tr.merged.by.site))
 
 
-plot_bar(ps.merged.common, fill = "Phylum", title = "Shared taxa by site") + 
+# get taxa not common across all 3 environments
+notcommon.taxa<-colnames(otu_table(ps_tr.merged.by.site))[! colnames(otu_table(ps_tr.merged.by.site)) %in% merged.common.taxa]
+
+ps.merged.notcommon.subset <- subset(otu_table(ps_tr.merged.by.site), select = colnames(otu_table(ps_tr.merged.by.site)) %in% notcommon.taxa)
+
+ps.merged.notcommon <- merge_phyloseq(ps.merged.notcommon.subset, tax_table(ps_tr.merged.by.site), sample_data(ps_tr.merged.by.site))
+```
+
+
+### Plot shared and not shared taxa across environments
+```{r}
+plot_bar(ps.merged.common, fill = "Phylum", title = "Shared taxa across environments (by site)") + 
   geom_bar(aes( fill=Phylum, color=NULL), stat="identity", position="stack") + 
   facet_grid(~sample_type_merged, scales="free") +
   theme(plot.title = element_text(hjust=0.5, size=20), 
@@ -222,50 +242,201 @@ plot_bar(ps.merged.common, fill = "Phylum", title = "Shared taxa by site") +
         legend.title = element_text(size=5),
         legend.key.size = unit(0.3, 'cm'),
         legend.position = "right") +
-  guides(fill=guide_legend(ncol=1))+ labs(x="", y="% taxa")+
-  scale_x_discrete()
+  guides(fill=guide_legend(ncol=1))+ labs(x="", y="Fraction taxa")+
+  scale_x_discrete() + scale_y_continuous(limits=c(0,1))
 
 ggsave(device = "png",filename=paste0("../5_Figures/FigX_Shared_phylum_by_site_",variation,".png"), height = 7, width=15, units="in")
 
+
+plot_bar(ps.merged.notcommon, fill = "Phylum", title = "Taxa not shared across environments (by site)") + 
+  geom_bar(aes( fill=Phylum, color=NULL), stat="identity", position="stack") + 
+  facet_grid(~ sample_type_merged, scales="free") +
+  theme(plot.title = element_text(hjust=0.5, size=20), 
+        panel.background = element_rect(color="black",fill="transparent", size=0.5),
+        legend.text = element_text(size=5), 
+        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=5, vjust=0.5),
+        axis.text.y=element_text(size=12),
+        legend.title = element_text(size=5),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.position = "right") +
+  guides(fill=guide_legend(ncol=1))+ labs(x="", y="Fraction taxa")+
+  scale_x_discrete()+ scale_y_continuous(limits=c(0,1))
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_NotShared_phylum_by_site_",variation,".png"), height = 7, width=15, units="in")
 ```
 
 
 #Get top taxa by environment  #### needs work, not finished #####
 ```{r}
-data.ps <-ps_tr %>%
+soil_ps <-  subset_samples(ps, sample_type=="soil")
+
+peat_ps <-  subset_samples(ps, sample_type=="peat")
+
+sediment_ps <-  subset_samples(ps, sample_type=="sediment")
+
+soil_ps_tibb <-soil_ps %>%
   tax_glom("Phylum") %>%
+  transform_sample_counts(function(x)100* x / sum(x)) %>%
   psmelt() %>%
   as_tibble()
 
 # highest abundance: all samples within each environment pooled together
-data.ps %>%
+soil_ps_tibb_average<-soil_ps_tibb %>%
   group_by(Phylum) %>%
-  summarise(Abundance = mean(Abundance)) %>%
-  group_by(sample_type) %>%
-  arrange(-Abundance)%>%
-  print(n=15)
+  summarise(mean_percent = mean(Abundance)) %>%
+  arrange(-mean_percent) %>%
+  filter( mean_percent > 1) %>%
+  mutate(sample_type="soil") %>%
+  print(n=20)
+
+#peat
+peat_ps_tibb <-peat_ps %>%
+  tax_glom("Phylum") %>%
+  transform_sample_counts(function(x)100* x / sum(x)) %>%
+  psmelt() %>%
+  as_tibble()
+
+# highest abundance: all samples within each environment pooled together
+peat_ps_tibb_average <-peat_ps_tibb %>%
+  group_by(Phylum) %>%
+  summarise(mean_percent = mean(Abundance)) %>%
+  arrange(-mean_percent) %>%
+  filter( mean_percent > 1) %>%
+  mutate(sample_type="peat") %>%
+  print(n=20)
+
+#lake sediment
+sediment_ps_tibb <-sediment_ps %>%
+  tax_glom("Phylum") %>%
+  transform_sample_counts(function(x)100* x / sum(x)) %>%
+  psmelt() %>%
+  as_tibble()
+
+# highest abundance: all samples within each environment pooled together
+sediment_ps_tibb_average<- sediment_ps_tibb %>%
+  group_by(Phylum) %>%
+  summarise(mean_percent = mean(Abundance)) %>%
+  arrange(-mean_percent) %>%
+  filter( mean_percent > 1) %>%
+  mutate(sample_type="sediment") %>%
+  print(n=20)
+
+# create tibble with top taxa for all environment 
+all.phyla<- bind_rows(soil_ps_tibb_average, peat_ps_tibb_average,sediment_ps_tibb_average)
+# remove duplicates in phyla vector to create an x axis 
+phyla_no_duplicates<-unique(all.phyla$Phylum)
+phyla_no_duplicates_sorted<- sort(phyla_no_duplicates)
+
+# add column for phylum number 
+all.phyla<- all.phyla %>%
+       mutate(phylum_number= as.numeric(factor(Phylum)))
+```
+  
+### Plot top phyla                
+```{r}
+ggplot(all.phyla,aes(as.character(phylum_number),mean_percent, fill=sample_type))+
+        geom_bar(stat = "identity",color="black",size=0.2) +
+        facet_wrap(~sample_type,ncol=1)+
+        scale_fill_manual(values = c("#fbd1a2", "#A1C7E0", "#ef767a")) +
+        scale_x_discrete(labels=c("1" = "Acidobacteriota", 
+                         "2" = "Actinobacteriota",
+                         "3" = "Armatimonadota",
+                         "4" = "Bacteroidota",
+                         "5" = "Chloroflexi",
+                         "6" = "Cyanobacteria",
+                         "7" = "Crenarchaeota",
+                         "8" = "Desulfobacterota",
+                         "9" = "Firmicutes",
+                         "10" = "Gemmatimonadota",
+                         "11" = "Halobacterota",
+                         "12" = "Latescibacterota",
+                         "13" = "Methylomirabilota",
+                         "14" = "Myxococcota",
+                         "15" = "Nanoarchaeota",
+                         "16" = "Nitrospirota",
+                         "17" = "Planctomycetota",
+                         "18" = "Proteobacteria",
+                         "19" = "Spirochaetota",
+                         "20" = "Sva0485",
+                         "21" = "Thermoplasmatota",
+                         "22" = "Unassigned",
+                         "23" = "Verrucomicrobiota" ), 
+                         limits=c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23))+
+        scale_y_continuous(limits=c(0,20), expand=c(0,0))+
+        theme(panel.background = element_blank(),
+              panel.border = element_rect(fill="transparent"),
+              axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+              axis.title.x=element_blank(),
+              strip.background = element_blank(),
+              strip.text.x = element_blank())+
+        labs(y="Average % across sites", title = "Top Phyla (average abundance>1%) by environment", fill="")
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Top_Phylum_across_sites_by_environment",variation,".png"), height = 8, width=10, units="in")
 
 ```
 
 
+#Run DESeq2
+```{r}
+#http://joey711.github.io/phyloseq-extensions/DESeq2.html
+library("DESeq2")
+packageVersion("DESeq2")
+ps_plus1<-ps.merged.by.site
+otu_table(ps_plus1)<- otu_table(ps.merged.by.site) + 1 #because there are 0 counts and can't compute geometric mean below
+
+diagdds1 = phyloseq_to_deseq2(ps_plus1, ~sample_type_merged)
+diagdds2 = DESeq(diagdds1, test="Wald", fitType="parametric")
+
+#investigate results
+res = results(diagdds2, cooksCutoff = FALSE)
+alpha = 0.01
+sigtab = res[which(res$padj < alpha), ]
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(ps_plus1)[rownames(sigtab), ],"matrix"))
+head(sigtab)
+```
+### Plot DESeq2 
+```{r}
+theme_set(theme_bw())
+scale_fill_discrete <- function(palname = "Set1", ...) {
+    scale_fill_brewer(palette = palname, ...)}
+
+# Kingdom order
+x = tapply(sigtab$log2FoldChange, sigtab$Kingdom, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Kingdom = factor(as.character(sigtab$Kingdom), levels=names(x))
+    
+# Phylum order
+x = tapply(sigtab$log2FoldChange, sigtab$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Phylum = factor(as.character(sigtab$Phylum), levels=names(x))
+
+# Genus order
+x = tapply(sigtab$log2FoldChange, sigtab$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Genus = factor(as.character(sigtab$Genus), levels=names(x))
+
+ggplot(sigtab, aes(x=Genus, y=log2FoldChange, color=Phylum)) + 
+  geom_point(size=2) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5),
+  axis.text.x.bottom = element_text(size=5))+
+   guides(color=guide_legend(ncol=2))+
+        labs(title="p<0.01")
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Statistically_sig_genus",variation,".png"), height = 8, width=15, units="in")
+
+ggplot(sigtab, aes(x=Phylum, y=log2FoldChange, color=Phylum)) + 
+  geom_point(size=2) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5),
+  axis.text.x.bottom = element_text(size=5))+
+   guides(color=guide_legend(ncol=2))+
+                labs(title="p<0.01")
 
 
-# Notes for meeting June 27, 2024:
-- May be worth removing samples that we know won't be in the analysis and repeat 1_RawSequenceProcessing step:
-        - MAWC possblank samples, Calder not top and bottom sediments, anything else? (DONE)
-- Need to select the correct samples and rerun the ZOTUexact 2_DataCleaning step (not done)
-- May be worth looking at the ZOTU99, OTU99, OTU97 for 2_DataCleaning (not done)
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Statistically_sig_phylum",variation,".png"), height = 8, width=15, units="in")
 
+```
 
-
-
-
-# 27 June 2024 - Jordan Updating NMDS
-# July 9&10, 2024 - Ioana Updating NMDS
-# July 12, 2024 - Ioana Updating NMDS
-
-# Community similarity - July 13, 2024 - Jordan
-July 13, 2024 Jordan looking at community similarity within each sample type and across the other sample types. 
 
 ## Calculate community similarity
 ```{r}
@@ -481,9 +652,25 @@ shared$percent<-shared$shared/(shared$shared+shared$nonshared)
 ```
 
 
-# Notes for meeting next, July 2024????
+
+#Notes 
+### 1. Notes for meeting June 27, 2024:
+- May be worth removing samples that we know won't be in the analysis and repeat 1_RawSequenceProcessing step:
+        - MAWC possblank samples, Calder not top and bottom sediments, anything else? (DONE)
+- Need to select the correct samples and rerun the ZOTUexact 2_DataCleaning step (not done)
+- May be worth looking at the ZOTU99, OTU99, OTU97 for 2_DataCleaning (not done)
+
+
+
+### 2. Community similarity - July 13, 2024 - Jordan
+July 13, 2024 Jordan looking at community similarity within each sample type and across the other sample types. 
+
+
+### 3. Notes for meeting July 2024????
 Do we want to merge samples by depth?
 What other posibilities are there for merging samples?
  - JV comment: I think we should avoid merging samples because for peat and sediments, samples from the same core could be really different based off depth. If we want to show multiple abundances from one group, I think we should convert them to datapoints and plot them all to show the distribution of the data. Merging ends up losing some information in my opinion! the function psmelt() works great for this!
  - JV - "depth_start" for John's samples is the bottom centimeter interval - need to update this in the metadata. 
+ 07.15.2024 -IS - not sure I understand what JV means by "convert to datapoints". Do you mean to not merge samples by depth? or not merge samples by site in the phyloseq?
+ 07.15.2024 - IS- 
 
