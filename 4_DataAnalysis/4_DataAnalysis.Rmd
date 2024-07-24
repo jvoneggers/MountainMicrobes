@@ -169,7 +169,7 @@ ps_tr.merged.by.site <- transform_sample_counts(ps.merged.by.site, function(x) x
 # Gloom by kingdom
 ps.merged.by.site.kingdom= tax_glom(ps_tr.merged.by.site, "Kingdom")
 
-plot_bar(ps.merged.by.site.phylum, fill = "Kingdom", title = "Merged samples by site") + 
+plot_bar(ps.merged.by.site.kingdom, fill = "Kingdom", title = "Merged samples by site") + 
   geom_bar(aes( fill=Kingdom, color=NULL), stat="identity", position="stack") + 
   facet_grid(~sample_type_merged, scales="free")+
   theme(plot.title = element_text(hjust=0.5, size=20), 
@@ -265,6 +265,47 @@ plot_bar(ps.merged.notcommon, fill = "Phylum", title = "Taxa not shared across e
 
 ggsave(device = "png",filename=paste0("../5_Figures/FigX_NotShared_phylum_by_site_",variation,".png"), height = 7, width=15, units="in")
 ```
+# Get unique taxa across 
+```{r}
+
+unq_taxa<- unique_taxa(ps_tr.merged.by.site,  treatment ="sample_type_merged", subset = NULL)
+unq_taxa_combined = unlist(unq_taxa, use.names=FALSE)
+
+t_otu_ps <- t(otu_table(ps_tr.merged.by.site))
+
+ps_unq_subset <- subset(otu_table(ps_tr.merged.by.site), select = colnames(otu_table(ps_tr.merged.by.site)) %in% unq_taxa_combined)
+
+ps.merged.unq <- merge_phyloseq(ps_unq_subset, tax_table(ps_tr.merged.by.site), sample_data(ps_tr.merged.by.site))
+```
+
+rm(ps_tr.merged.by.site)
+
+
+### Plot unique taxa 
+```{r}
+cols = rainbow(82, s=.6, v=.9)[sample(1:82,82)]
+
+plot_bar(ps.merged.unq, fill = "Phylum", title = "Unique taxa by environments (by site)") + 
+  geom_bar(aes( fill=Phylum, color=NULL), stat="identity", position="stack") + 
+  facet_grid(~sample_type_merged, scales="free") +
+  theme(plot.title = element_text(hjust=0.5, size=20), 
+        panel.background = element_rect(color="black",fill="transparent", size=0.5),
+        legend.text = element_text(size=5), 
+        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=5, vjust=0.5),
+        axis.text.y=element_text(size=12),
+        legend.title = element_text(size=5),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.position = "right") +
+  guides(fill=guide_legend(ncol=2))+ labs(x="", y="Fraction taxa")+
+  scale_x_discrete() + scale_y_continuous(limits=c(0,1))+
+  scale_fill_manual(values=cols)
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Unique_taxa_by_phylum_by_site_",variation,".png"), height = 7, width=15, units="in")
+```
+
+
+
 
 
 #Get top taxa by environment  #### needs work, not finished #####
@@ -289,6 +330,7 @@ soil_ps_tibb_average<-soil_ps_tibb %>%
   filter( mean_percent > 1) %>%
   mutate(sample_type="soil") %>%
   print(n=20)
+
 
 #peat
 peat_ps_tibb <-peat_ps %>%
@@ -482,12 +524,12 @@ comps$sample_comparison<-factor(comps$sample_comparison, levels=c("soil","peat",
 
 
 rm(metadata_s1);rm(metadata_s2);rm(comm.dist.ls);rm(OTU); rm(ps_tr)
-# write.csv(comps,paste0(Sys.Date(),"_community_similarity_sample_type.csv"))
+#write.csv(comps,paste0(Sys.Date(),"_community_similarity_sample_type.csv"))
 ```
 
 ### Plot community similarity
 ```{r}
-comps<-read.csv("2024-07-13_community_similarity_sample_type.csv")
+comps<-read.csv("2024-07-23_community_similarity_sample_type.csv")
 comps$sample_comparison<-factor(comps$sample_comparison, levels=c("soil","peat","sediment","soil-peat","peat-sediment","soil-sediment"))
 
 
@@ -650,27 +692,4 @@ shared$nonshared<-nonshared$nonshared
 rm(nonshared)
 shared$percent<-shared$shared/(shared$shared+shared$nonshared)
 ```
-
-
-
-#Notes 
-### 1. Notes for meeting June 27, 2024:
-- May be worth removing samples that we know won't be in the analysis and repeat 1_RawSequenceProcessing step:
-        - MAWC possblank samples, Calder not top and bottom sediments, anything else? (DONE)
-- Need to select the correct samples and rerun the ZOTUexact 2_DataCleaning step (not done)
-- May be worth looking at the ZOTU99, OTU99, OTU97 for 2_DataCleaning (not done)
-
-
-
-### 2. Community similarity - July 13, 2024 - Jordan
-July 13, 2024 Jordan looking at community similarity within each sample type and across the other sample types. 
-
-
-### 3. Notes for meeting July 2024????
-Do we want to merge samples by depth?
-What other posibilities are there for merging samples?
- - JV comment: I think we should avoid merging samples because for peat and sediments, samples from the same core could be really different based off depth. If we want to show multiple abundances from one group, I think we should convert them to datapoints and plot them all to show the distribution of the data. Merging ends up losing some information in my opinion! the function psmelt() works great for this!
- - JV - "depth_start" for John's samples is the bottom centimeter interval - need to update this in the metadata. 
- 07.15.2024 -IS - not sure I understand what JV means by "convert to datapoints". Do you mean to not merge samples by depth? or not merge samples by site in the phyloseq?
- 07.15.2024 - IS- 
 

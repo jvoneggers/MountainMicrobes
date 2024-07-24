@@ -1,0 +1,42 @@
+---
+title: "Notes"
+output: html_notebook
+---
+
+
+
+#Notes 
+### 06.27.2024 Notes for meeting June 27, 2024:
+- May be worth removing samples that we know won't be in the analysis and repeat 1_RawSequenceProcessing step:
+        - MAWC possblank samples, Calder not top and bottom sediments, anything else? (DONE)
+- Need to select the correct samples and rerun the ZOTUexact 2_DataCleaning step (not done)
+- May be worth looking at the ZOTU99, OTU99, OTU97 for 2_DataCleaning (not done)
+
+
+
+### 07.13.2024 Community similarity Jordan
+July 13, 2024 Jordan looking at community similarity within each sample type and across the other sample types. 
+
+
+### 07.10.2024 Notes for meeting July 2024????
+
+
+# Brainstorm 
+
+-IS- Do we want to merge samples by depth?
+
+-IS- What other posibilities are there for merging samples?
+
+ - JV comment: I think we should avoid merging samples because for peat and sediments, samples from the same core could be really different based off depth. If we want to show multiple abundances from one group, I think we should convert them to datapoints and plot them all to show the distribution of the data. Merging ends up losing some information in my opinion! the function psmelt() works great for this!
+ 
+ - JV - "depth_start" for John's samples is the bottom centimeter interval - need to update this in the metadata. 
+ 
+ 07.15.2024 -IS - not sure I understand what JV means by "convert to datapoints". Do you mean to not merge samples by depth? or not merge samples by site in the phyloseq?
+ 
+ 07.18.2024 - IS- check if samples differ within sites, if not then merging by site would make sense. 
+ 
+ 07.19.2024  -IS- filtered samples by depth and re run all the analyses with only surface samples. That is samples collected at depth<19cm. Chose 19 cm because that is the maximum depth for soils. 
+ 
+ 07.23.2024  -IS-  Ideas for analyses and framing a paper: 3 environments, similarities in microbial communities, dissimilarities in microbial communities, focus on potential explanations on why these 3 different environments have said similarities/dissimilarities and why unique taxa evolved in their each environment. Exploratory analysis on macrobial communities from different environment types but same climate conditions. Control for climate but not environment. Now, of course,  the environments (here, soil, peat and sediment) have different env conditions because of water/no water content (mostly?)
+ 
+ -IS- life evolved in water- how does this relate to what we are seeing here-> more taxa diversity in water environments???? 

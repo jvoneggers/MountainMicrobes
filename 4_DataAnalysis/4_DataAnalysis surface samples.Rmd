@@ -1,0 +1,712 @@
+---
+title: "16S Microbial Analysis from lake sediments, peat, and soils in Wyoming mountains only for samples <15cm"
+author: "Created by Jordan Von Eggers, modified by Ioana Stefanscu"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+
+## June 27, 2024 - Jordan Updating NMDS
+## July 9-10, 2024 - Ioana Updating NMDS
+## July 12, 2024 - Ioana Updating NMDS
+## July 16, 2024 - Ioana working on shared and not shared taxa, top taxa by environment, and statistically significant taxa between environemnts
+## July 17, 2024 - Ioana analyzing samples with depths <15cm
+
+
+# Load packages and report session info
+```{r}
+require(phyloseq)
+require(tidyverse)
+require(vegan)
+
+# newly added packages that may need installing 
+require(reshape2)
+require(metagMisc)
+require(RColorBrewer)
+require(geosphere)
+library(phylosmith)
+
+# #installation for metagMisc
+# install.packages("remotes")
+# remotes::install_github("vmikk/metagMisc")
+#remotes::install_github('schuyler-smith/phylosmith')
+sessionInfo()
+
+```
+
+
+R version 4.4.0 (2024-04-24)
+
+other attached packages:
+ [1] vegan_2.6-6.1   lattice_0.22-6  permute_0.9-7   lubridate_1.9.3 forcats_1.0.0   stringr_1.5.1   dplyr_1.1.4     purrr_1.0.2     readr_2.1.5    
+[10] tidyr_1.3.1     tibble_3.2.1    ggplot2_3.5.1   tidyverse_2.0.0 phyloseq_1.48.0
+
+
+# Load data
+(this takes a few minutes)
+```{r}
+source("../3_CreatePhyloseq/3_CreatePhyloseq_ZOTUexact.R")
+```
+
+# Custom theme
+```{r}
+  custom_theme <- function() {
+  theme_bw() +
+    theme(
+      text = element_text(color = "black", size = 13),
+      axis.text = element_text(color = "black",size = 13),
+      axis.title = element_text(color = "black",size = 13),
+      axis.title.x = element_text(margin = margin(t = 10)),
+      axis.title.y = element_text(margin = margin(r = 10)),
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+      plot.subtitle = element_text(hjust = 0.5, size = 12),
+      legend.text = element_text(size = 13),
+      legend.title = element_text(size = 13),
+      strip.text = element_text(size = 13, color = "black"))}
+```
+
+ 
+#Subset ps by depth <19 com
+```{r}
+ps_depth_less19<- subset_samples(ps, depth_end <=19)
+ps_tr_depth_less19<-transform_sample_counts(ps_depth_less19, function(x) x / sum(x) )
+
+# rename back to ps and ps_tr so there is no need to modify the code below
+ps<- ps_depth_less19
+ps_tr<-ps_tr_depth_less19
+
+# add depth for figure names
+variation<-"ZOTUexact_depth_less19"
+```
+
+
+#Remove samples ???
+```{r}
+# to_remove <- c("Sample1", "Sample5", "Sample10", "Sample30")
+# ps<- prune_samples(!(sample_names(ps) %in% to_remove), ps)
+```
+
+
+#Richness
+```{r}
+richness <- estimate_richness(ps)
+head(richness)
+
+plot_richness(ps, x="sample_id", color="sample_type", measures=c("Observed"), title="Depth <19 cm")+
+  theme(panel.background = element_blank(),
+              panel.border = element_rect(fill="transparent"),
+              axis.text.x = element_text(size=2))
+
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Alpha_diversity",variation,".png"), height = 7, width=9, units="in")
+```
+
+# NMDS
+```{r}
+set.seed(484)
+nmds <- ps %>% ordinate(., method = "NMDS", distance="bray")
+round(nmds$stress,digits=3)
+```
+Updated score:  0.131  Ioana Stefanescu, 07.18.2024
+### Plot NMDS
+```{r}
+nmds_points <- as.data.frame(nmds$points) %>% rownames_to_column(var="sample_id")
+metadata<- metadata  %>% filter(depth_end<=19)
+nmds_meta<-merge(nmds_points,metadata,by="sample_id")
+
+rm(nmds_points)
+
+
+environmental.envfit= envfit(nmds ~latitude+ longitude+ elevation + depth_start+
+depth_end+ Tann+ Tmin+ Tmax+ MAP, data=metadata, perm=1000,na.rm=T)   
+
+env.vectors <- as.data.frame(scores(environmental.envfit, display = "vectors"))* ordiArrowMul(environmental.envfit)
+env.vectors.pval <- env.vectors %>% mutate(p=environmental.envfit$vectors$pvals,    Variable=row.names(env.vectors))  %>% 
+        filter(p<0.05) 
+
+
+
+cols<-c("#fbd1a2", "#A1C7E0", "#ef767a")
+
+ggplot()+
+        geom_point(data=nmds_meta, aes(x=MDS1, y=MDS2, color=sample_type, size=depth_start))+
+        scale_color_manual(values=cols) + 
+        custom_theme() +
+        labs(x = "NMDS1",
+             y = "NMDS2",
+             color= "Environment",
+             size="Depth <19 cm") +   
+        annotate("text", x = min(nmds_meta$MDS1), y = max(nmds_meta$MDS2), 
+           label = paste("Stress =", round(nmds$stress,digits=3)), 
+           hjust = 0, vjust = 1, size = 5) +
+ geom_segment(data = env.vectors.pval, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), 
+        size =1, alpha = 0.5, colour = "black", arrow = arrow(length=unit(2, "mm")), lwd=0.5) +
+ geom_text(data = env.vectors.pval, aes(x = NMDS1, y = NMDS2, label = Variable),
+            size = 3)
+
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_NMDS_sample_type_envfit",variation,".png"), height = 7, width=9, units="in")
+```
+
+
+# Merge samples by site
+```{r}
+#create another column in the metadata with factored sample_type. This is because sample type and sample id disappears when summing samples within sites.
+sample_type.ps<- data.frame(ps@sam_data$sample_type)
+colnames(sample_type.ps)
+sample_type.ps<-  sample_type.ps %>% mutate(sample_type.factored = as.numeric(factor(ps.sam_data.sample_type)))
+
+
+#Add sample_type_factored column to sample data 
+sample_data(ps)$sample_type_factored <- as.integer(sample_type.ps$sample_type.factored)
+# Merge samples by site 
+ps.merged.by.site<- merge_samples(ps, "site_name") # summed by site
+#add back site name in column
+sample_data(ps.merged.by.site)$site_name_relabeled <-rownames(ps.merged.by.site@sam_data)
+
+#get factored "sample_type" and assign character then add it to sample_data of merged samples
+to_change<- as.data.frame(ps.merged.by.site@sam_data$sample_type_factored)
+colnames(to_change)<- "sample_type_factored"
+to_change<- to_change %>%
+  mutate(sample_type_merged = case_when(sample_type_factored==1 ~ "peat",
+                                       sample_type_factored==2 ~ "sediment",
+                                       sample_type_factored==3~"soil"))
+
+sample_data(ps.merged.by.site)$sample_type_merged <-to_change$sample_type_merged
+
+ps.merged.by.site.samp.dat=data.frame(ps.merged.by.site@sam_data)
+
+# transform counts
+ps_tr.merged.by.site <- transform_sample_counts(ps.merged.by.site, function(x) x / sum(x))
+
+
+```
+
+### Plot bars at kingdom and phylum levels 
+```{r}
+# Gloom by kingdom
+ps.merged.by.site.kingdom= tax_glom(ps_tr.merged.by.site, "Kingdom")
+
+plot_bar(ps.merged.by.site.kingdom, fill = "Kingdom", title = "Merged samples by site <19 cm") + 
+  geom_bar(aes( fill=Kingdom, color=NULL), stat="identity", position="stack") + 
+  facet_grid(~sample_type_merged, scales="free")+
+  theme(plot.title = element_text(hjust=0.5, size=20), 
+        panel.background = element_rect(color="black",fill="transparent", size=0.5),
+        legend.text = element_text(size=5), 
+        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=5, vjust=0.5),
+        axis.text.y=element_text(size=12),
+        legend.title = element_text(size=5),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.position = "right") +
+  guides(fill=guide_legend(ncol=1))+ labs(x="", y="% taxa")+
+  scale_x_discrete()
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Kingdom_merged_by_site_",variation,".png"), height = 7, width=9, units="in")
+
+
+# Gloom by phylum
+ps.merged.by.site.phylum= tax_glom(ps_tr.merged.by.site, "Phylum")
+plot_bar(ps.merged.by.site.phylum, fill = "Phylum", title = "Merged samples by site <19 cm") + 
+  geom_bar(aes( fill=Phylum, color=NULL), stat="identity", position="stack") + 
+  facet_grid(~sample_type_merged, scales="free")+
+  theme(plot.title = element_text(hjust=0.5, size=20), 
+        panel.background = element_rect(color="black",fill="transparent", size=0.5),
+        legend.text = element_text(size=5), 
+        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=5, vjust=0.5),
+        axis.text.y=element_text(size=12),
+        legend.title = element_text(size=5),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.position = "right") +
+  guides(fill=guide_legend(ncol=4))+ labs(x="", y="% taxa")+
+  scale_x_discrete()
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Phylum_merged_by_site_",variation,".png"), height = 7, width=15, units="in")
+
+```
+
+
+# Get shared and not shared taxa across environments
+```{r}
+# get taxa  common across all 3 environments
+merged.common.taxa<- common_taxa(ps_tr.merged.by.site, treatment="sample_type_merged", n = "all")
+
+ps.merged.common.subset <- subset(otu_table(ps_tr.merged.by.site), select = colnames(otu_table(ps_tr.merged.by.site)) %in% merged.common.taxa)
+
+ps.merged.common <- merge_phyloseq(ps.merged.common.subset, tax_table(ps_tr.merged.by.site), sample_data(ps_tr.merged.by.site))
+
+
+# get taxa not common across all 3 environments
+notcommon.taxa<-colnames(otu_table(ps_tr.merged.by.site))[! colnames(otu_table(ps_tr.merged.by.site)) %in% merged.common.taxa]
+
+ps.merged.notcommon.subset <- subset(otu_table(ps_tr.merged.by.site), select = colnames(otu_table(ps_tr.merged.by.site)) %in% notcommon.taxa)
+
+ps.merged.notcommon <- merge_phyloseq(ps.merged.notcommon.subset, tax_table(ps_tr.merged.by.site), sample_data(ps_tr.merged.by.site))
+```
+
+
+### Plot shared and not shared taxa across environments
+```{r}
+
+cols = rainbow(84, s=.6, v=.9)[sample(1:84,84)]
+
+plot_bar(ps.merged.common, fill = "Phylum", title = "Shared taxa across environments (by site)")+ 
+  geom_bar(aes( fill=Phylum, color=NULL), stat="identity", position="stack") + 
+  facet_grid(~sample_type_merged, scales="free") +
+  theme(plot.title = element_text(hjust=0.5, size=20), 
+        panel.background = element_rect(color="black",fill="transparent", size=0.5),
+        legend.text = element_text(size=5), 
+        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=5, vjust=0.5),
+        axis.text.y=element_text(size=12),
+        legend.title = element_text(size=5),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.position = "right") +
+  guides(fill=guide_legend(ncol=1))+ labs(x="", y="Fraction taxa")+
+  scale_x_discrete() + scale_y_continuous(limits=c(0,1))+
+          scale_fill_manual(values=cols)
+
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Shared_phylum_by_site_",variation,".png"), height = 7, width=15, units="in")
+
+
+plot_bar(ps.merged.notcommon, fill = "Phylum", title = "Taxa not shared across environments (by site)") + 
+  geom_bar(aes( fill=Phylum, color=NULL), stat="identity", position="stack") + 
+  facet_grid(~ sample_type_merged, scales="free") +
+  theme(plot.title = element_text(hjust=0.5, size=20), 
+        panel.background = element_rect(color="black",fill="transparent", size=0.5),
+        legend.text = element_text(size=5), 
+        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=5, vjust=0.5),
+        axis.text.y=element_text(size=12),
+        legend.title = element_text(size=5),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.position = "right") +
+  guides(fill=guide_legend(ncol=1))+ labs(x="", y="Fraction taxa")+
+  scale_x_discrete()+ scale_y_continuous(limits=c(0,1))+
+          scale_fill_manual(values=cols)
+
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_NotShared_phylum_by_site_",variation,".png"), height = 7, width=15, units="in")
+```
+
+# Get unique taxa across 
+```{r}
+
+unq_taxa<- unique_taxa(ps_tr.merged.by.site,  treatment ="sample_type_merged", subset = NULL)
+unq_taxa_combined = unlist(unq_taxa, use.names=FALSE)
+
+t_otu_ps <- t(otu_table(ps_tr.merged.by.site))
+
+ps_unq_subset <- subset(otu_table(ps_tr.merged.by.site), select = colnames(otu_table(ps_tr.merged.by.site)) %in% unq_taxa_combined)
+
+ps.merged.unq <- merge_phyloseq(ps_unq_subset, tax_table(ps_tr.merged.by.site), sample_data(ps_tr.merged.by.site))
+```
+
+
+### Plot unique taxa 
+```{r}
+cols = rainbow(82, s=.6, v=.9)[sample(1:82,82)]
+
+plot_bar(ps.merged.unq, fill = "Phylum", title = "Unique taxa by environments (by site)") + 
+  geom_bar(aes( fill=Phylum, color=NULL), stat="identity", position="stack") + 
+  facet_grid(~sample_type_merged, scales="free") +
+  theme(plot.title = element_text(hjust=0.5, size=20), 
+        panel.background = element_rect(color="black",fill="transparent", size=0.5),
+        legend.text = element_text(size=5), 
+        axis.title.y = element_text(size=16),
+        axis.text.x = element_text(size=5, vjust=0.5),
+        axis.text.y=element_text(size=12),
+        legend.title = element_text(size=5),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.position = "right") +
+  guides(fill=guide_legend(ncol=2))+ labs(x="", y="Fraction taxa")+
+  scale_x_discrete() + scale_y_continuous(limits=c(0,1))+
+  scale_fill_manual(values=cols)
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Unique_taxa_by_phylum_by_site_",variation,".png"), height = 7, width=15, units="in")
+```
+
+#Get top taxa by environment  #### needs work, not finished #####
+```{r}
+soil_ps <-  subset_samples(ps, sample_type=="soil")
+
+peat_ps <-  subset_samples(ps, sample_type=="peat")
+
+sediment_ps <-  subset_samples(ps, sample_type=="sediment")
+
+soil_ps_tibb <-soil_ps %>%
+  tax_glom("Phylum") %>%
+  transform_sample_counts(function(x)100* x / sum(x)) %>%
+  psmelt() %>%
+  as_tibble()
+
+# highest abundance: all samples within each environment pooled together
+soil_ps_tibb_average<-soil_ps_tibb %>%
+  group_by(Phylum) %>%
+  summarise(mean_percent = mean(Abundance)) %>%
+  arrange(-mean_percent) %>%
+  filter( mean_percent > 1) %>%
+  mutate(sample_type="soil") %>%
+  print(n=20)
+
+#peat
+peat_ps_tibb <-peat_ps %>%
+  tax_glom("Phylum") %>%
+  transform_sample_counts(function(x)100* x / sum(x)) %>%
+  psmelt() %>%
+  as_tibble()
+
+# highest abundance: all samples within each environment pooled together
+peat_ps_tibb_average <-peat_ps_tibb %>%
+  group_by(Phylum) %>%
+  summarise(mean_percent = mean(Abundance)) %>%
+  arrange(-mean_percent) %>%
+  filter( mean_percent > 1) %>%
+  mutate(sample_type="peat") %>%
+  print(n=20)
+
+#lake sediment
+sediment_ps_tibb <-sediment_ps %>%
+  tax_glom("Phylum") %>%
+  transform_sample_counts(function(x)100* x / sum(x)) %>%
+  psmelt() %>%
+  as_tibble()
+
+# highest abundance: all samples within each environment pooled together
+sediment_ps_tibb_average<- sediment_ps_tibb %>%
+  group_by(Phylum) %>%
+  summarise(mean_percent = mean(Abundance)) %>%
+  arrange(-mean_percent) %>%
+  filter( mean_percent > 1) %>%
+  mutate(sample_type="sediment") %>%
+  print(n=20)
+
+# create tibble with top taxa for all environment 
+all.phyla<- bind_rows(soil_ps_tibb_average, peat_ps_tibb_average,sediment_ps_tibb_average)
+# remove duplicates in phyla vector to create an x axis 
+phyla_no_duplicates<-unique(all.phyla$Phylum)
+phyla_no_duplicates_sorted<- sort(phyla_no_duplicates)
+
+# add column for phylum number 
+all.phyla<- all.phyla %>%
+       mutate(phylum_number= as.numeric(factor(Phylum)))
+```
+  
+### Plot top phyla                
+```{r}
+ggplot(all.phyla,aes(as.character(phylum_number),mean_percent, fill=sample_type))+
+        geom_bar(stat = "identity",color="black",size=0.2) +
+        facet_wrap(~sample_type,ncol=1)+
+        scale_fill_manual(values = c("#fbd1a2", "#A1C7E0", "#ef767a")) +
+        scale_x_discrete(labels=c("1" = "Acidobacteriota", 
+                         "2" = "Actinobacteriota",
+                         "3" = "Bacteroidota",
+                         "4" = "Chloroflexi",
+                          "5" = "Crenarchaeota",
+                         "6" = "Cyanobacteria",
+                         "7" = "Desulfobacterota",
+                         "8" = "Gemmatimonadota",
+                         "9" = "Halobacterota",
+                         "10" = "Latescibacterota",
+                         "11" = "Methylomirabilota",
+                         "12" = "Myxococcota",
+                         "13" = "Nanoarchaeota",
+                         "14" = "Nitrospirota",
+                         "15" = "Planctomycetota",
+                         "16" = "Proteobacteria",
+                         "17" = "Spirochaetota",
+                         "18" = "Sva0485",
+                         "19" = "Thermoplasmatota",
+                         "20" = "Unassigned",
+                         "21" = "Verrucomicrobiota" ), 
+                         limits=c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21))+
+        scale_y_continuous(limits=c(0,20), expand=c(0,0))+
+        theme(panel.background = element_blank(),
+              panel.border = element_rect(fill="transparent"),
+              axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+              axis.title.x=element_blank(),
+              strip.background = element_blank(),
+              strip.text.x = element_blank())+
+        labs(y="Average % across sites", title = "Top Phyla (average abundance>1%) by environment depth<19cm", fill="")
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Top_Phylum_across_sites_by_environment",variation,".png"), height = 8, width=10, units="in")
+
+```
+
+
+#Run DESeq2
+```{r}
+#http://joey711.github.io/phyloseq-extensions/DESeq2.html
+library("DESeq2")
+packageVersion("DESeq2")
+ps_plus1<-ps.merged.by.site
+otu_table(ps_plus1)<- otu_table(ps.merged.by.site) + 1 #because there are 0 counts and can't compute geometric mean below
+
+diagdds1 = phyloseq_to_deseq2(ps_plus1, ~sample_type_merged)
+diagdds2 = DESeq(diagdds1, test="Wald", fitType="parametric")
+
+#investigate results
+res = results(diagdds2, cooksCutoff = FALSE)
+alpha = 0.01
+sigtab = res[which(res$padj < alpha), ]
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(ps_plus1)[rownames(sigtab), ],"matrix"))
+head(sigtab)
+```
+### Plot DESeq2 
+```{r}
+theme_set(theme_bw())
+scale_fill_discrete <- function(palname = "Set1", ...) {
+    scale_fill_brewer(palette = palname, ...)}
+
+# Kingdom order
+x = tapply(sigtab$log2FoldChange, sigtab$Kingdom, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Kingdom = factor(as.character(sigtab$Kingdom), levels=names(x))
+    
+# Phylum order
+x = tapply(sigtab$log2FoldChange, sigtab$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Phylum = factor(as.character(sigtab$Phylum), levels=names(x))
+
+# Genus order
+x = tapply(sigtab$log2FoldChange, sigtab$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Genus = factor(as.character(sigtab$Genus), levels=names(x))
+
+ggplot(sigtab, aes(x=Genus, y=log2FoldChange, color=Phylum)) + 
+  geom_point(size=2) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5),
+  axis.text.x.bottom = element_text(size=5))+
+   guides(color=guide_legend(ncol=2))+
+        labs(title="p<0.01")
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Statistically_sig_genus",variation,".png"), height = 8, width=15, units="in")
+
+ggplot(sigtab, aes(x=Phylum, y=log2FoldChange, color=Phylum)) + 
+  geom_point(size=2) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5),
+  axis.text.x.bottom = element_text(size=5))+
+   guides(color=guide_legend(ncol=2))+
+                labs(title="p<0.01")
+
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Statistically_sig_phylum",variation,".png"), height = 8, width=15, units="in")
+
+```
+
+
+## Calculate community similarity
+```{r}
+# used ps object because normalized and sums to one
+OTU<-t(as.data.frame(ps@otu_table@.Data))
+#calculate Bray-Curtis similarity between all samples
+comm.dist <- 1 - vegdist(OTU)
+
+#convert the dissimilarity matrix to long format
+comm.dist.ls<-as.matrix(comm.dist)
+comm.dist.ls[upper.tri(comm.dist.ls, diag = T)] <- NA
+comm.dist.ls<-reshape2::melt(comm.dist.ls, na.rm=T)
+names(comm.dist.ls)<-c("s1_sample_id","s2_sample_id","comm")
+
+#merge in metadata to table
+metadata_s1<-metadata[metadata$depth_end<=19,]
+colnames(metadata_s1)<-paste("s1",colnames(metadata_s1), sep="_")
+metadata_s2<-metadata[metadata$depth_end<=19,]
+colnames(metadata_s2)<-paste("s2",colnames(metadata_s2), sep="_")
+
+# convert to dataframe, change the sample IDs from factors to characters and merge in the metadata tables
+comps<-data.frame(comm.dist.ls)
+comps$s1_sample_id<-as.character(comps$s1_sample_id)
+comps$s2_sample_id<-as.character(comps$s2_sample_id)
+comps<-merge(comps, metadata_s1, by="s1_sample_id")
+comps<-merge(comps, metadata_s2, by="s2_sample_id")
+
+
+#remove metadata notes
+comps$s1_notes<-NULL
+comps$s2_notes<-NULL
+
+comps <- comps %>% mutate(sample_comparison = 
+                  case_when(s1_sample_type==s2_sample_type ~ s1_sample_type,
+                            s1_sample_type=="peat" & s2_sample_type=="soil" ~ "soil-peat",
+                            s2_sample_type=="peat" & s1_sample_type=="soil" ~ "soil-peat",
+                            s1_sample_type=="peat" & s2_sample_type=="sediment" ~ "peat-sediment",
+                            s2_sample_type=="peat" & s1_sample_type=="sediment" ~ "peat-sediment",
+                            s1_sample_type=="soil" & s2_sample_type=="sediment" ~ "soil-sediment",
+                            s2_sample_type=="soil" & s1_sample_type=="sediment" ~ "soil-sediment")) %>% select(sample_comparison,comm)
+
+comps$sample_comparison<-factor(comps$sample_comparison, levels=c("soil","peat","sediment","soil-peat","peat-sediment","soil-sediment"))
+
+
+rm(metadata_s1);rm(metadata_s2);rm(comm.dist.ls);rm(OTU); rm(ps_tr)
+ #write.csv(comps,paste0(Sys.Date(),"_community_similarity_sample_type.csv"))
+```
+
+### Plot community similarity
+```{r}
+comps<-read.csv("2024-07-19_community_similarity_sample_type.csv")
+comps$sample_comparison<-factor(comps$sample_comparison, levels=c("soil","peat","sediment","soil-peat","peat-sediment","soil-sediment"))
+
+
+colors <- c("soil"="#A6761D", 
+                 "peat"="#D95F02", 
+                 "sediment"="#7570B3", 
+                 "soil-peat"="#E7298A", 
+                 "peat-sediment"="#66A61E", 
+                 "soil-sediment"="#E6AB02")
+
+ggplot(data=comps, aes(y=comm, x=sample_comparison, fill=sample_comparison)) + 
+        geom_boxplot() + custom_theme() + 
+        labs(x="",
+             y="Community similiary (1 - Bray)",
+             fill="") +
+        scale_fill_manual(values=colors)
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Community_similarity_sample_type_",variation,".png"), height = 7, width=10, units="in")
+
+```
+
+
+## Geographic distance
+some of Dulcinea's peat samples don't have lat/lon, so this code has been made to remove those samples. need to update this after values have been updated 
+```{r}
+#subset data by those with lat/longs
+meta_sub <- metadata %>% select(sample_id, sample_type, latitude, longitude) %>% na.omit(.)
+
+# used ps object because normalized and sums to one
+OTU<-t(as.data.frame(ps@otu_table@.Data))
+
+#subset samples that have lat/long
+OTU<-OTU[rownames(meta_sub),]
+table(rownames(OTU)==rownames(meta_sub)) #all true
+table(rownames(meta_sub)==rownames(OTU)) #all true
+
+#calculate Bray-Curtis similarity between all samples
+comm.dist <- 1 - vegdist(OTU)
+
+
+# Lat&lon to distance in meters
+xy <- data.frame(X = meta_sub$longitude, Y = meta_sub$latitude)
+rownames(xy)<-meta_sub$sample_id
+dist_m_output<-distm(xy)
+rownames(dist_m_output)<-rownames(xy)
+names(dist_m_output)<-rownames(xy)
+dist_m_output<-as.dist(dist_m_output)
+
+
+#transform all distance matrices into dataframes with pairwise comparisons
+coord.dist.ls<-as.matrix(dist_m_output)
+coord.dist.ls[upper.tri(coord.dist.ls, diag = T)] <- NA
+coord.dist.ls<-reshape2::melt(coord.dist.ls, na.rm=T)
+names(coord.dist.ls)<-c("s1_sample_id","s2_sample_id","geo_dist")
+coord.dist.ls$s1_sample_id<-as.character(coord.dist.ls$s1_sample_id)
+coord.dist.ls$s2_sample_id<-as.character(coord.dist.ls$s2_sample_id)
+
+# convert community distances to long format
+comm.dist.ls<-as.matrix(comm.dist)
+comm.dist.ls[upper.tri(comm.dist.ls, diag = T)] <- NA
+comm.dist.ls<-reshape2::melt(comm.dist.ls, na.rm=T)
+names(comm.dist.ls)<-c("s1_sample_id","s2_sample_id","comm")
+comm.dist.ls$s1_sample_id<-as.character(comm.dist.ls$s1_sample_id)
+comm.dist.ls$s2_sample_id<-as.character(comm.dist.ls$s2_sample_id)
+
+#check the names of these match
+table(coord.dist.ls[,1]==comm.dist.ls[,1]) #all true
+table(coord.dist.ls[,2]==comm.dist.ls[,2]) #all true
+
+#create df with similarity of community and distance
+comps<-data.frame(comm.dist.ls)
+comps$geo_dist<-coord.dist.ls$geo_dist
+
+#merge in metadata to table
+metadata_s1<-meta_sub
+colnames(metadata_s1)<-paste("s1",colnames(metadata_s1), sep="_")
+
+metadata_s2<-meta_sub
+colnames(metadata_s2)<-paste("s2",colnames(metadata_s2), sep="_")
+
+comps<-merge(comps, metadata_s1, by="s1_sample_id")
+comps<-merge(comps, metadata_s2, by="s2_sample_id")
+
+#remove metadata notes
+comps$s1_notes<-NULL
+comps$s2_notes<-NULL
+
+# convert to km and add in sample comparison categories
+comps <- comps %>% mutate(geo_dist_km=geo_dist/1000) %>%
+        mutate(sample_comparison = 
+                  case_when(s1_sample_type==s2_sample_type ~ s1_sample_type,
+                            s1_sample_type=="peat" & s2_sample_type=="soil" ~ "soil-peat",
+                            s2_sample_type=="peat" & s1_sample_type=="soil" ~ "soil-peat",
+                            s1_sample_type=="peat" & s2_sample_type=="sediment" ~ "peat-sediment",
+                            s2_sample_type=="peat" & s1_sample_type=="sediment" ~ "peat-sediment",
+                            s1_sample_type=="soil" & s2_sample_type=="sediment" ~ "soil-sediment",
+                            s2_sample_type=="soil" & s1_sample_type=="sediment" ~ "soil-sediment")) %>% select(sample_comparison,comm, geo_dist_km)
+
+comps$sample_comparison<-factor(comps$sample_comparison, levels=c("soil","peat","sediment","soil-peat","peat-sediment","soil-sediment"))
+
+ write.csv(comps,paste0(Sys.Date(),"_community_similarity_sample_type_geodist.csv"))
+
+```
+
+
+### Plot geographic distance with community similarity
+```{r}
+comps<-read.csv("2024-07-13_community_similarity_sample_type_geodist.csv")
+comps$sample_comparison<-factor(comps$sample_comparison, levels=c("soil","peat","sediment","soil-peat","peat-sediment","soil-sediment"))
+colors <- c("soil"="#A6761D", 
+                 "peat"="#D95F02", 
+                 "sediment"="#7570B3", 
+                 "soil-peat"="#E7298A", 
+                 "peat-sediment"="#66A61E", 
+                 "soil-sediment"="#E6AB02")
+
+ggplot(data=comps, aes(y=comm, x=geo_dist_km, color=sample_comparison)) + 
+        geom_point() + custom_theme() + 
+        labs(x="Geographic distance (km)",
+             y="Community similiary (1 - Bray)",
+             color="")+
+        scale_color_manual(values=adjustcolor(colors, alpha.f = 0.5))
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Community_similarity_sample_type_geo_distance",variation,".png"), height = 7, width=9, units="in")
+
+ggplot(data=comps, aes(y=comm, x=geo_dist_km)) + 
+        geom_point() + custom_theme() + 
+        labs(x="Geographic distance (km)",
+             y="Community similiary (1 - Bray)")+ 
+        geom_smooth(method='lm', formula= y~x, col="palegreen3")
+
+ggsave(device = "png",filename=paste0("../5_Figures/FigX_Community_similarity_geo_distance_lm_",variation,".png"), height = 7, width=9, units="in")
+
+```
+
+
+
+# Shared ESVs - not started
+```{r}
+#calculate
+shared_esvs <- phyloseq_num_shared_otus(ps)
+
+#shared ESVs
+shared<-as.matrix(shared_esvs[["shared"]])
+shared[upper.tri(shared, diag = T)] <- NA
+shared<-melt(shared,na.rm=TRUE)
+
+colnames(shared)[3]<-"shared"
+
+#nonshared ESVs
+nonshared<-as.matrix(shared_esvs[["nonshared_total"]])
+nonshared[upper.tri(nonshared, diag = T)] <- NA
+nonshared<-melt(nonshared,na.rm=TRUE)
+colnames(nonshared)[3]<-"nonshared"
+
+table(nonshared$Var1==shared$Var1) #all T
+table(nonshared$Var2==shared$Var2) #all T
+
+shared$nonshared<-nonshared$nonshared
+rm(nonshared)
+shared$percent<-shared$shared/(shared$shared+shared$nonshared)
+```
+
