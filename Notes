@@ -1,0 +1,99 @@
+---
+title: "Project Notes"
+output: html_notebook
+---
+
+
+Workflow:
+  Changes in metadata: if we change the metadata csv file, rerun 3_CreatePhyloseq
+  
+
+06.27.2024 Notes for meeting June 27, 2024:
+- May be worth removing samples that we know won't be in the analysis and repeat 1_RawSequenceProcessing step:
+        - MAWC possblank samples, Calder not top and bottom sediments, anything else? (DONE)
+- Need to select the correct samples and rerun the ZOTUexact 2_DataCleaning step (not done)
+- May be worth looking at the ZOTU99, OTU99, OTU97 for 2_DataCleaning (not done)
+
+
+07.13.2024 Community similarity Jordan
+July 13, 2024 Jordan looking at community similarity within each sample type and across the other sample types. 
+
+07.10.2024 Notes for meeting July 2024????
+
+
+# Brainstorm 
+
+-IS- Do we want to merge samples by depth?
+-IS- What other posibilities are there for merging samples?
+ - JV comment: I think we should avoid merging samples because for peat and sediments, samples from the same core could be really different based off depth. If we want to show multiple abundances from one group, I think we should convert them to datapoints and plot them all to show the distribution of the data. Merging ends up losing some information in my opinion! the function psmelt() works great for this!
+ - JV - "depth_start" for John's samples is the bottom centimeter interval - need to update this in the metadata. 
+  07.15.2024 -IS - not sure I understand what JV means by "convert to datapoints". Do you mean to not merge samples by depth? or not merge samples by site in the phyloseq?
+ 07.18.2024 - IS- check if samples differ within sites, if not then merging by site would make sense. 
+  07.19.2024  -IS- filtered samples by depth and re run all the analyses with only surface samples. That is samples collected at depth<19cm. Chose 19 cm because that is the maximum depth for soils. 
+  07.23.2024  -IS-  Ideas for analyses and framing a paper: 3 environments, similarities in microbial communities, dissimilarities in microbial communities, focus on potential explanations on why these 3 different environments have said similarities/dissimilarities and why unique taxa evolved in their each environment. Exploratory analysis on macrobial communities from different environment types but same climate conditions. Control for climate but not environment. Now, of course,  the environments (here, soil, peat and sediment) have different env conditions because of water/no water content (mostly?)
+ -IS- life evolved in water- how does it relate to what we are seeing here-> more taxa diversity in water environments???? 
+ 
+ 
+ 
+ 07.29.2024
+ To do: 
+ subset surface samples 
+ Merge by site if keep only surface samples
+ nmds, community dissimilarities by genus , add categorical variable with peat, sediment
+ Shared taxa by genus: 
+ 
+ 
+ 
+ 
+ 07.30.2024 Bryan, Dulcinea and Ioana over zoom
+ To do:
+ 
+1. DONE Remove deep core samples             
+2. DONE Split substrates by two categories where possible: Surface and deep. 
+                Soils: surface only
+                Peats: surface & deep
+                Sediments: surface and & deep
+        Total of 5 categories
+3. DONE Order samples in panels by latitude
+        
+3. Redo all meta analyses plots with new sample subset             DONE
+
+4. Create new phyloseq with metadata subset
+
+5. Rerun @ OTU level: Alpha diversity, NMDS, Barplots, Community dissimilarity, Shared vs nonShared taxa, Unique taxa, Rare taxa. 
+
+6. Rerun everything at genus level. 
+
+
+Bryan said to get top 20 taxa whatever that might be:
+    https://joey711.github.io/phyloseq-demo/phyloseq-demo-slides.html
+  
+  
+Check the following analyses
+https://karstenslab.github.io/microshades/articles/microshades-GP.html
+
+
+
+
+ICS emails JVE and DVG
+
+"Hi all, 
+
+I finished most of the analyses that Bryan asked, which were:
+
+Split samples as surface and deep (peat and sediments only) and create 5 categories: sediment-deep, sediment-surface, peat-deep, peat-surface, soil.
+Rerun analyses: Alpha diversity, NMDS, 16S plots.
+Arrange panels in the following order: sediment-deep, sediment-surface, peat-deep, peat-surface, soil.
+Arrange samples in each panel by latitude. 
+Gloom at genus level and rerun: not done
+Rerun metadata with the 5 substrates. 
+Plot metadata relationships (See powerpoint). 
+
+Jordan: can you rerun the Similarity plot and Geographical Distance plot with the 5 categories? Make sure to run the lines 66-84 to remove the  samples not needed and subset metadata based on it. The new column with the 5 categories is "sample_type_depth". 
+
+Also, I need some help with glooming at genus level. Jordan, can you try it on your computer and save it as an rds object so then I can just load it? I tried numerous times and my computer crashed each time. I wrote the code for it on lines 886-890 (in 4_data_analysis). 
+
+I uploaded the PowerPoint on GitHub. I kept the old slides and added the new ones which start with page 18. You two can check it out before the end of month meeting. 
+
+Ioana"
+
